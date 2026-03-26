@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "no1salonchair@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(doc) {
+      return doc.uid is string && doc.uid == request.auth.uid &&
+             doc.name is string && doc.name.size() > 0 && doc.name.size() < 100 &&
+             isValidEmail(doc.email) &&
+             doc.role in ['user', 'salon_owner', 'admin'] &&
+             doc.createdAt is timestamp;
+    }
+
+    function isValidSalon(doc) {
+      return doc.id is string &&
+             doc.ownerId is string &&
+             doc.name is string && doc.name.size() > 0 && doc.name.size() < 100 &&
+             doc.services is list &&
+             doc.imageUrl is string &&
+             doc.location is map && doc.location.lat is number && doc.location.lng is number &&
+             doc.status in ['pending', 'active', 'hidden'] &&
+             doc.subscriptionExpiry is timestamp &&
+             doc.createdAt is timestamp;
+    }
+
+    function isValidBooking(doc) {
+      return doc.id is string &&
+             doc.userId is string &&
+             doc.salonId is string &&
+             doc['service'] is string &&
+             doc.dateTime is timestamp &&
+             doc.status in ['pending', 'accepted', 'rejected', 'completed'] &&
+             doc.createdAt is timestamp;
+    }
+
+    function isValidMessage(doc) {
+      return doc.id is string &&
+             doc.bookingId is string &&
+             doc.senderId is string &&
+             doc.text is string && doc.text.size() > 0 && doc.text.size() < 1000 &&
+             doc.timestamp is timestamp;
+    }
+
+    function isValidPayment(doc) {
+      return doc.id is string &&
+             doc.salonId is string &&
+             doc.amount is number && doc.amount == 200 &&
+             doc.status in ['pending', 'success'] &&
+             doc.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /salons/{salonId} {
+      allow read: if resource.data.status == 'active' || isOwner(resource.data.ownerId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.ownerId) && 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'salon_owner' && 
+                    isValidSalon(request.resource.data) && request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (isOwner(resource.data.ownerId) || isAdmin()) && 
+                    isValidSalon(request.resource.data) && 
+                    (isAdmin() || (request.resource.data.status == resource.data.status && request.resource.data.subscriptionExpiry == resource.data.subscriptionExpiry));
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidBooking(request.resource.data) && request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (isOwner(resource.data.userId) || isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId) || isAdmin()) && isValidBooking(request.resource.data);
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId) || isOwner(get(/databases/$(database)/documents/salons/$(get(/databases/$(database)/documents/bookings/$(bookingId)).data.salonId)).data.ownerId) || isAdmin());
+        allow create: if isAuthenticated() && isOwner(request.resource.data.senderId) && isValidMessage(request.resource.data) && 
+                      get(/databases/$(database)/documents/bookings/$(bookingId)).data.status == 'accepted' &&
+                      (request.resource.data.senderId == get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId || 
+                       request.resource.data.senderId == get(/databases/$(database)/documents/salons/$(get(/databases/$(database)/documents/bookings/$(bookingId)).data.salonId)).data.ownerId);
+      }
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(get(/databases/$(database)/documents/salons/$(request.resource.data.salonId)).data.ownerId) && isValidPayment(request.resource.data) && request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidPayment(request.resource.data);
+    }
+  }
+}

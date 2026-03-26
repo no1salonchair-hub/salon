@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["user", "salon_owner", "admin"], "description": "User's role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "Salon": {
+      "title": "Salon",
+      "description": "Salon listing information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique salon ID" },
+        "ownerId": { "type": "string", "description": "UID of the salon owner" },
+        "name": { "type": "string", "description": "Salon name" },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "imageUrl": { "type": "string", "description": "URL of the salon's front image" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["pending", "active", "hidden"], "description": "Salon approval status" },
+        "subscriptionExpiry": { "type": "string", "format": "date-time", "description": "When the subscription expires" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the salon was created" }
+      },
+      "required": ["id", "ownerId", "name", "services", "imageUrl", "location", "status", "subscriptionExpiry", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Salon booking information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique booking ID" },
+        "userId": { "type": "string", "description": "UID of the user who booked" },
+        "salonId": { "type": "string", "description": "ID of the salon booked" },
+        "service": { "type": "string", "description": "Service name" },
+        "dateTime": { "type": "string", "format": "date-time", "description": "Booking date and time" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"], "description": "Booking status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the booking was created" }
+      },
+      "required": ["id", "userId", "salonId", "service", "dateTime", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "bookingId": { "type": "string", "description": "ID of the booking this chat belongs to" },
+        "senderId": { "type": "string", "description": "UID of the message sender" },
+        "text": { "type": "string", "description": "Message text" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the message was sent" }
+      },
+      "required": ["id", "bookingId", "senderId", "text", "timestamp"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Salon subscription payment information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique payment ID" },
+        "salonId": { "type": "string", "description": "ID of the salon paying" },
+        "amount": { "type": "number", "description": "Payment amount (₹200)" },
+        "status": { "type": "string", "enum": ["pending", "success"], "description": "Payment status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When payment was made" }
+      },
+      "required": ["id", "salonId", "amount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "UserProfile", "description": "User profiles" },
+    "/salons/{salonId}": { "schema": "Salon", "description": "Salon listings" },
+    "/bookings/{bookingId}": { "schema": "Booking", "description": "Salon bookings" },
+    "/bookings/{bookingId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages for a booking" },
+    "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" }
+  }
+}
