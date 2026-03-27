@@ -10,6 +10,8 @@ export const Profile: React.FC = () => {
   const [name, setName] = useState(profile?.name || '');
   const [loading, setLoading] = useState(false);
 
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -23,6 +25,19 @@ export const Profile: React.FC = () => {
       toast.error('Failed to update profile.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSwitchToOwner = async () => {
+    setIsUpdatingRole(true);
+    try {
+      await updateProfile({ role: 'salon_owner' });
+      toast.success('Role updated to Salon Owner!');
+    } catch (error) {
+      console.error('Error switching role:', error);
+      toast.error('Failed to switch role. Please try again.');
+    } finally {
+      setIsUpdatingRole(false);
     }
   };
 
@@ -100,10 +115,12 @@ export const Profile: React.FC = () => {
           <div className="pt-8 border-t border-white/5 text-center">
             <p className="text-gray-400 mb-4">Are you a salon owner?</p>
             <button
-              onClick={() => updateProfile({ role: 'salon_owner' }).then(() => toast.success('Role updated to Salon Owner!'))}
-              className="px-8 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-all border border-white/10"
+              disabled={isUpdatingRole}
+              onClick={handleSwitchToOwner}
+              className="px-8 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-all border border-white/10 disabled:opacity-50 flex items-center justify-center gap-2 mx-auto"
             >
-              Switch to Salon Owner Role
+              {isUpdatingRole && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isUpdatingRole ? 'Switching...' : 'Switch to Salon Owner Role'}
             </button>
           </div>
         )}

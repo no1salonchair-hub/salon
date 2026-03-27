@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, collection, query, orderBy, addDoc, Timestamp, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { Booking, Salon, Message } from '../types';
 import { Send, Scissors, Calendar, Clock, MapPin, MessageCircle, ChevronLeft, Loader2 } from 'lucide-react';
@@ -37,7 +37,7 @@ export const BookingDetails: React.FC = () => {
             setSalon({ id: salonDoc.id, ...salonDoc.data() } as Salon);
           }
         } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `salons/${bookingData.salonId}`);
+          handleFirestoreError(auth, error, OperationType.GET, `salons/${bookingData.salonId}`);
         }
 
         // Fetch Messages
@@ -49,7 +49,7 @@ export const BookingDetails: React.FC = () => {
           setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[]);
           setLoading(false);
         }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, `bookings/${bookingId}/messages`);
+          handleFirestoreError(auth, error, OperationType.LIST, `bookings/${bookingId}/messages`);
         });
 
         return () => unsubscribeMessages();
@@ -58,7 +58,7 @@ export const BookingDetails: React.FC = () => {
         navigate('/dashboard');
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `bookings/${bookingId}`);
+      handleFirestoreError(auth, error, OperationType.GET, `bookings/${bookingId}`);
     });
 
     return () => unsubscribeBooking();
@@ -84,7 +84,7 @@ export const BookingDetails: React.FC = () => {
       });
       setNewMessage('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+      handleFirestoreError(auth, error, OperationType.CREATE, path);
     }
   };
 

@@ -1,5 +1,7 @@
 {
-  "name": "Salon Chair",
+  "name": "Salon Chair B",
   "description": "A modern salon booking marketplace with real-time chat and geolocation.",
-  "requestFramePermissions": ["geolocation"]
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

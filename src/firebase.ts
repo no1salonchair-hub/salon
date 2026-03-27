@@ -19,22 +19,32 @@ export const db = initializeFirestore(app, {
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export const storage = getStorage(app);
+console.log('Storage Bucket:', firebaseConfig.storageBucket);
 export const googleProvider = new GoogleAuthProvider();
 
-// Connection test
-async function testConnection() {
-  try {
-    console.log('Testing connection to Firestore (Database: ' + (firebaseConfig.firestoreDatabaseId || '(default)') + ')...');
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firestore connection successful');
-  } catch (error) {
-    console.error('Firestore connection test failed:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('the client is offline')) {
-        console.error("Please check your Firebase configuration. The client is offline.");
+// Connection test with retry logic
+async function testConnection(retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`Testing connection to Firestore (Attempt ${i + 1}/${retries})...`);
+      await getDocFromServer(doc(db, 'test', 'connection'));
+      console.log('Firestore connection successful');
+      return;
+    } catch (error) {
+      console.error(`Firestore connection test attempt ${i + 1} failed:`, error);
+      if (error instanceof Error) {
+        if (error.message.includes('not-found')) {
+          console.log('Firestore connection test: Document not found (this is expected if the test doc doesn\'t exist, but it means we connected!)');
+          return;
+        }
+        if (error.message.includes('the client is offline') && i < retries - 1) {
+          console.log('Client is offline, retrying in 2 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
       }
-      if (error.message.includes('not-found')) {
-        console.log('Firestore connection test: Document not found (this is expected if the test doc doesn\'t exist, but it means we connected!)');
+      if (i === retries - 1) {
+        console.error("Final Firestore connection test failed.");
       }
     }
   }

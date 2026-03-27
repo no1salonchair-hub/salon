@@ -23,8 +23,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 font-medium animate-pulse">Initializing Salon Chair...</p>
       </div>
     );
   }

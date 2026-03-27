@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { db, storage } from '../firebase';
+import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Service, Salon } from '../types';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { toast } from 'sonner';
+import { compressImage } from '../lib/image-utils';
 
 export const SalonSetup: React.FC = () => {
   const { profile, updateProfile } = useAuth();
@@ -40,14 +41,23 @@ export const SalonSetup: React.FC = () => {
     }
 
     if (navigator.geolocation) {
+      const geoTimeout = setTimeout(() => {
+        console.warn('Geolocation request timed out');
+      }, 10000);
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          clearTimeout(geoTimeout);
           setLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
         },
-        (error) => console.error('Error getting location:', error)
+        (error) => {
+          clearTimeout(geoTimeout);
+          console.error('Error getting location:', error);
+        },
+        { timeout: 10000, enableHighAccuracy: false }
       );
     }
   }, [profile, navigate]);
@@ -56,59 +66,16 @@ export const SalonSetup: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Browser-side image compression
-    const compressedFile = await compressImage(file);
-    setImage(compressedFile);
-    setImagePreview(URL.createObjectURL(compressedFile));
-  };
-
-  const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 600;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const newFile = new File([blob], 'salon_front.jpg', {
-                  type: 'image/jpeg',
-                  lastModified: Date.now(),
-                });
-                resolve(newFile);
-              }
-            },
-            'image/jpeg',
-            0.7 // Compression quality
-          );
-        };
-      };
-    });
+    try {
+      // Browser-side image compression
+      const compressedBlob = await compressImage(file);
+      const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+      setImage(compressedFile);
+      setImagePreview(URL.createObjectURL(compressedFile));
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      toast.error('Failed to process image');
+    }
   };
 
   const addService = () => {
@@ -124,16 +91,43 @@ export const SalonSetup: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !image || !location || services.length === 0) return;
+    if (!profile) return;
+
+    if (!image) {
+      toast.error('Please upload a salon image');
+      return;
+    }
+    if (!location) {
+      toast.error('Location access is required to list your salon');
+      return;
+    }
+    if (services.length === 0) {
+      toast.error('Please add at least one service');
+      return;
+    }
 
     setLoading(true);
+    console.log('Starting salon setup process...');
+    const toastId = toast.loading('Setting up your salon...');
+    
     try {
-      // 1. Upload Image
-      const storageRef = ref(storage, `salons/${profile.uid}/front.jpg`);
-      await uploadBytes(storageRef, image);
-      const imageUrl = await getDownloadURL(storageRef);
+      if (!image) throw new Error('No image selected');
+      console.log('Image to process:', image.name, image.size, image.type);
+
+      // 1. Convert Image to Base64 (already compressed in handleImageChange)
+      console.log('Converting image to base64...');
+      const imageUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(image);
+      });
+      
+      console.log('Image converted to base64 successfully. Length:', imageUrl.length);
+      toast.loading('Creating salon profile...', { id: toastId });
 
       // 2. Create Salon
+      console.log('Creating salon document in Firestore...');
       const salonData: Omit<Salon, 'id'> = {
         ownerId: profile.uid,
         name: salonName,
@@ -146,14 +140,20 @@ export const SalonSetup: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'salons'), salonData);
+      console.log('Salon document created with ID:', docRef.id);
       
       // 3. Update User Role (if not already)
       if (profile.role !== 'salon_owner') {
+        console.log('Updating user role to salon_owner...');
         await updateProfile({ role: 'salon_owner' });
+        console.log('User role updated successfully');
       }
 
+      toast.success('Salon setup complete! Redirecting to dashboard...', { id: toastId });
       navigate('/dashboard');
     } catch (error) {
+      console.error('Error during salon setup:', error);
+      toast.error('Failed to setup salon. Please try again.', { id: toastId });
       handleFirestoreError(error, OperationType.CREATE, 'salons');
     } finally {
       setLoading(false);
@@ -274,24 +274,38 @@ export const SalonSetup: React.FC = () => {
           </div>
 
           {/* Location */}
-          <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center gap-4">
-            <MapPin className="w-8 h-8 text-blue-400" />
+          <div className={cn(
+            "p-6 rounded-2xl flex items-center gap-4 border transition-all",
+            location ? "bg-blue-500/10 border-blue-500/20" : "bg-yellow-500/10 border-yellow-500/20"
+          )}>
+            <MapPin className={cn("w-8 h-8", location ? "text-blue-400" : "text-yellow-400")} />
             <div>
-              <h4 className="font-bold text-blue-400">Location Detected</h4>
-              <p className="text-sm text-blue-300/60">
-                {location ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` : 'Detecting your location...'}
+              <h4 className={cn("font-bold", location ? "text-blue-400" : "text-yellow-400")}>
+                {location ? 'Location Detected' : 'Location Required'}
+              </h4>
+              <p className={cn("text-sm", location ? "text-blue-300/60" : "text-yellow-300/60")}>
+                {location 
+                  ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` 
+                  : 'Please allow location access in your browser to proceed.'}
               </p>
             </div>
           </div>
 
           {/* Submit */}
-          <button
-            disabled={loading || !image || !location || services.length === 0}
-            className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-          >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-            {loading ? 'Setting up your salon...' : 'Complete Setup'}
-          </button>
+          <div className="space-y-4">
+            {!image && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Please upload a salon image</p>}
+            {services.length === 0 && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Please add at least one service</p>}
+            {!location && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Location access is required to list your salon</p>}
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            >
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+              {loading ? 'Setting up your salon...' : 'Complete Setup'}
+            </button>
+          </div>
         </form>
       </motion.div>
     </div>

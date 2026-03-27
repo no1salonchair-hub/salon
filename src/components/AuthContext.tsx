@@ -25,43 +25,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    console.log('AuthContext: Initializing auth listener...');
+    let isMounted = true;
+    
+    // Safety timeout to prevent infinite loading
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(prev => {
+          if (prev) {
+            console.warn('AuthContext: Auth initialization timed out after 10s. Forcing loading to false.');
+            return false;
+          }
+          return prev;
+        });
+      }
+    }, 10000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
+      if (isMounted) {
+        clearTimeout(safetyTimeout);
+      }
+      
       try {
         setUser(firebaseUser);
         if (firebaseUser) {
           const path = `users/${firebaseUser.uid}`;
-          try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userDoc.exists()) {
-              setProfile(userDoc.data() as UserProfile);
-            } else {
-              // New user
-              const newProfile: UserProfile = {
-                uid: firebaseUser.uid,
-                name: firebaseUser.displayName || 'Anonymous',
-                email: firebaseUser.email || '',
-                role: 'user',
-                photoURL: firebaseUser.photoURL || undefined,
-                createdAt: Timestamp.now(),
-              };
-              await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-              setProfile(newProfile);
+          
+          const fetchProfile = async (retries = 3): Promise<void> => {
+            for (let i = 0; i < retries; i++) {
+              try {
+                console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
+                const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
+                
+                if (userDoc.exists()) {
+                  const existingProfile = userDoc.data() as UserProfile;
+                  if (isAdmin && existingProfile.role !== 'admin') {
+                    const updatedProfile = { ...existingProfile, role: 'admin' as const };
+                    await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
+                    if (isMounted) setProfile(updatedProfile);
+                  } else {
+                    if (isMounted) setProfile(existingProfile);
+                  }
+                } else {
+                  const newProfile: UserProfile = {
+                    uid: firebaseUser.uid,
+                    name: firebaseUser.displayName || 'Anonymous',
+                    email: firebaseUser.email || '',
+                    role: isAdmin ? 'admin' : 'user',
+                    photoURL: firebaseUser.photoURL || undefined,
+                    createdAt: Timestamp.now(),
+                  };
+                  await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+                  if (isMounted) setProfile(newProfile);
+                }
+                console.log('AuthContext: Profile loaded successfully');
+                return; // Success
+              } catch (err: any) {
+                console.error(`AuthContext: Profile fetch attempt ${i + 1} failed:`, err);
+                if (err.message?.includes('offline') && i < retries - 1) {
+                  console.log('AuthContext: Client is offline, retrying in 2 seconds...');
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  continue;
+                }
+                if (i === retries - 1) {
+                  handleFirestoreError(err, OperationType.GET, path);
+                }
+              }
             }
-          } catch (err) {
-            handleFirestoreError(err, OperationType.GET, path);
-          }
+          };
+
+          await fetchProfile();
         } else {
-          setProfile(null);
+          if (isMounted) setProfile(null);
         }
       } catch (err: any) {
-        console.error('Auth initialization error:', err);
-        setError(err);
+        console.error('AuthContext: Auth initialization error:', err);
+        if (isMounted) setError(err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const signIn = async () => {

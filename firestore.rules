@@ -20,7 +20,7 @@ service cloud.firestore {
     }
 
     function isValidUser(doc) {
-      return doc.uid is string && doc.uid == request.auth.uid &&
+      return doc.uid is string &&
              doc.name is string && doc.name.size() > 0 && doc.name.size() < 100 &&
              isValidEmail(doc.email) &&
              doc.role in ['user', 'salon_owner', 'admin'] &&
@@ -28,8 +28,7 @@ service cloud.firestore {
     }
 
     function isValidSalon(doc) {
-      return doc.id is string &&
-             doc.ownerId is string &&
+      return doc.ownerId is string &&
              doc.name is string && doc.name.size() > 0 && doc.name.size() < 100 &&
              doc.services is list &&
              doc.imageUrl is string &&
@@ -40,8 +39,7 @@ service cloud.firestore {
     }
 
     function isValidBooking(doc) {
-      return doc.id is string &&
-             doc.userId is string &&
+      return doc.userId is string &&
              doc.salonId is string &&
              doc['service'] is string &&
              doc.dateTime is timestamp &&
@@ -50,16 +48,14 @@ service cloud.firestore {
     }
 
     function isValidMessage(doc) {
-      return doc.id is string &&
-             doc.bookingId is string &&
+      return doc.bookingId is string &&
              doc.senderId is string &&
              doc.text is string && doc.text.size() > 0 && doc.text.size() < 1000 &&
              doc.timestamp is timestamp;
     }
 
     function isValidPayment(doc) {
-      return doc.id is string &&
-             doc.salonId is string &&
+      return doc.salonId is string &&
              doc.amount is number && doc.amount == 200 &&
              doc.status in ['pending', 'success'] &&
              doc.createdAt is timestamp;
@@ -67,14 +63,16 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
-      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId && (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+                    request.resource.data.uid == resource.data.uid &&
+                    (isAdmin() || (request.resource.data.role == resource.data.role || (resource.data.role == 'user' && request.resource.data.role == 'salon_owner')));
     }
 
     match /salons/{salonId} {
       allow read: if resource.data.status == 'active' || isOwner(resource.data.ownerId) || isAdmin();
       allow create: if isAuthenticated() && isOwner(request.resource.data.ownerId) && 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'salon_owner' && 
+                    (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['user', 'salon_owner']) && 
                     isValidSalon(request.resource.data) && request.resource.data.status == 'pending';
       allow update: if isAuthenticated() && (isOwner(resource.data.ownerId) || isAdmin()) && 
                     isValidSalon(request.resource.data) && 

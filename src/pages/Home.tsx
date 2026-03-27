@@ -34,18 +34,25 @@ export const Home: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Get user location
+    // Get user location with timeout
     if (navigator.geolocation) {
+      const geoTimeout = setTimeout(() => {
+        console.warn('Geolocation request timed out');
+      }, 10000);
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          clearTimeout(geoTimeout);
           setUserLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
         },
         (error) => {
+          clearTimeout(geoTimeout);
           console.error('Error getting location:', error);
-        }
+        },
+        { timeout: 10000, enableHighAccuracy: false }
       );
     }
 
@@ -71,16 +78,21 @@ export const Home: React.FC = () => {
   }, []);
 
   const filteredSalons = salons.filter((salon) => {
-    const matchesSearch = salon.name.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!userLocation) return matchesSearch;
+    const matchesSearch = (salon.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    if (!userLocation || !salon.location) return matchesSearch;
     
-    const distance = getDistance(
-      userLocation.lat,
-      userLocation.lng,
-      salon.location.lat,
-      salon.location.lng
-    );
-    return matchesSearch && distance <= 1; // 1 KM radius
+    try {
+      const distance = getDistance(
+        userLocation.lat,
+        userLocation.lng,
+        salon.location.lat,
+        salon.location.lng
+      );
+      return matchesSearch && distance <= 50; // Increased to 50 KM radius for better UX
+    } catch (e) {
+      console.error('Error calculating distance:', e);
+      return matchesSearch;
+    }
   });
 
   return (
@@ -121,7 +133,7 @@ export const Home: React.FC = () => {
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <MapPin className="text-purple-500" />
             Nearby Salons
-            <span className="text-sm font-normal text-gray-500 ml-2">(Within 1km)</span>
+            <span className="text-sm font-normal text-gray-500 ml-2">(Within 50km)</span>
           </h2>
         </div>
 
@@ -162,12 +174,12 @@ export const Home: React.FC = () => {
                       <h3 className="text-xl font-black mb-1">{salon.name}</h3>
                       <div className="flex items-center gap-1 text-gray-500 text-xs font-bold uppercase tracking-widest">
                         <MapPin className="w-3 h-3" />
-                        <span>{userLocation ? `${getDistance(userLocation.lat, userLocation.lng, salon.location.lat, salon.location.lng).toFixed(1)} km away` : 'Nearby'}</span>
+                        <span>{userLocation && salon.location ? `${getDistance(userLocation.lat, userLocation.lng, salon.location.lat, salon.location.lng).toFixed(1)} km away` : 'Nearby'}</span>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {salon.services.slice(0, 3).map((service, idx) => (
+                      {(salon.services || []).slice(0, 3).map((service, idx) => (
                         <span key={idx} className="px-2 py-1 bg-white/5 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
                           {service.name}
                         </span>
@@ -177,7 +189,11 @@ export const Home: React.FC = () => {
                     <div className="pt-4 border-t border-white/5 flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Starts from</p>
-                        <p className="text-xl font-black text-purple-400">₹{Math.min(...salon.services.map(s => s.price))}</p>
+                        <p className="text-xl font-black text-purple-400">
+                          ₹{salon.services && salon.services.length > 0 
+                            ? Math.min(...salon.services.map(s => s.price || 0)) 
+                            : '0'}
+                        </p>
                       </div>
                       <button 
                         onClick={(e) => {
