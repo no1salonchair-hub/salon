@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc, Time
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { Salon, Payment, UserProfile } from '../types';
-import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, addDays } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -14,10 +14,29 @@ export const AdminPanel: React.FC = () => {
   const [salons, setSalons] = useState<Salon[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [users, setUsers] = useState<Record<string, UserProfile>>({});
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users'>('overview');
 
   useEffect(() => {
     if (profile?.role !== 'admin') return;
+
+    const unsubscribeUsers = onSnapshot(
+      collection(db, 'users'),
+      (snapshot) => {
+        const userList = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
+        setAllUsers(userList);
+        
+        const userMap: Record<string, UserProfile> = {};
+        userList.forEach(u => {
+          userMap[u.uid] = u;
+        });
+        setUsers(userMap);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      }
+    );
 
     const unsubscribeSalons = onSnapshot(
       query(collection(db, 'salons'), orderBy('createdAt', 'desc')),
@@ -65,6 +84,7 @@ export const AdminPanel: React.FC = () => {
     );
 
     return () => {
+      unsubscribeUsers();
       unsubscribeSalons();
       unsubscribePayments();
     };
@@ -150,125 +170,259 @@ export const AdminPanel: React.FC = () => {
           <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-1">Total Payments</p>
           <h3 className="text-4xl font-black text-green-500">{payments.length}</h3>
         </div>
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
+          <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-1">Total Users</p>
+          <h3 className="text-4xl font-black text-blue-500">{allUsers.length}</h3>
+        </div>
       </div>
 
-      {/* Pending Payments */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <CreditCard className="text-green-500" />
-          Pending Payments
-        </h2>
-        <div className="grid grid-cols-1 gap-4">
-          {payments.filter(p => p.status === 'pending').map(payment => (
-            <div key={payment.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-green-600/20 rounded-xl flex items-center justify-center text-green-400">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold">₹{payment.amount} Payment</h3>
-                  <p className="text-xs text-gray-400">Salon ID: {payment.salonId}</p>
-                  <p className="text-xs text-gray-500">{format(payment.createdAt.toDate(), 'MMM dd, hh:mm a')}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => approvePayment(payment.id, payment.salonId)}
-                className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-500 transition-all"
-              >
-                Verify & Activate
-              </button>
-            </div>
-          ))}
-          {payments.filter(p => p.status === 'pending').length === 0 && (
-            <p className="text-gray-500 text-center py-10 bg-white/5 rounded-2xl border border-dashed border-white/10">
-              No pending payments to verify.
-            </p>
+      {/* Tabs */}
+      <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+            activeTab === 'overview' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
           )}
-        </div>
-      </section>
+        >
+          <Scissors className="w-4 h-4" />
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('owners')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+            activeTab === 'owners' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Salon Owners
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+            activeTab === 'users' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Users className="w-4 h-4" />
+          Users
+        </button>
+      </div>
 
-      {/* Salon Management */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Scissors className="text-purple-500" />
-          Salon Management
-        </h2>
-        <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white/5 border-b border-white/10">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Salon</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Owner</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {salons.map(salon => (
-                <tr key={salon.id} className="hover:bg-white/[0.02] transition-all">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img src={salon.imageUrl} alt={salon.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
-                      <span className="font-bold">{salon.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
-                      salon.status === 'active' ? "bg-green-500/20 text-green-400" : 
-                      salon.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
-                    )}>
-                      {salon.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2 text-xs text-gray-300">
-                        <Mail className="w-3 h-3 text-purple-500" />
-                        {users[salon.ownerId]?.email || 'Loading...'}
+      <AnimatePresence mode="wait">
+        {activeTab === 'overview' && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-10"
+          >
+            {/* Pending Payments */}
+            <section className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <CreditCard className="text-green-500" />
+                Pending Payments
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                {payments.filter(p => p.status === 'pending').map(payment => (
+                  <div key={payment.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-green-600/20 rounded-xl flex items-center justify-center text-green-400">
+                        <CreditCard className="w-6 h-6" />
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-black uppercase tracking-widest">
-                        <User className="w-3 h-3 text-purple-500" />
-                        {users[salon.ownerId]?.role || 'Loading...'}
+                      <div>
+                        <h3 className="font-bold">₹{payment.amount} Payment</h3>
+                        <p className="text-xs text-gray-400">Salon ID: {payment.salonId}</p>
+                        <p className="text-xs text-gray-500">{format(payment.createdAt.toDate(), 'MMM dd, hh:mm a')}</p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {salon.status === 'pending' && (
-                        <button
-                          onClick={() => approveSalon(salon.id)}
-                          className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all"
-                          title="Approve"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => toggleSalonVisibility(salon.id, salon.status)}
-                        className="p-2 bg-white/5 text-white rounded-lg hover:bg-white/10 transition-all border border-white/10"
-                        title={salon.status === 'active' ? 'Hide' : 'Show'}
-                      >
-                        {salon.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => deleteSalon(salon.id)}
-                        className="p-2 bg-red-600/10 text-red-500 rounded-lg hover:bg-red-600/20 transition-all border border-red-500/20"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {salons.length === 0 && (
-            <div className="p-10 text-center text-gray-500 italic">No salons found.</div>
-          )}
-        </div>
-      </section>
+                    <button
+                      onClick={() => approvePayment(payment.id, payment.salonId)}
+                      className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-500 transition-all"
+                    >
+                      Verify & Activate
+                    </button>
+                  </div>
+                ))}
+                {payments.filter(p => p.status === 'pending').length === 0 && (
+                  <p className="text-gray-500 text-center py-10 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                    No pending payments to verify.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            {/* Salon Management */}
+            <section className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Scissors className="text-purple-500" />
+                Salon Management
+              </h2>
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Salon</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Owner</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {salons.map(salon => (
+                      <tr key={salon.id} className="hover:bg-white/[0.02] transition-all">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <img src={salon.imageUrl} alt={salon.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                            <span className="font-bold">{salon.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                            salon.status === 'active' ? "bg-green-500/20 text-green-400" : 
+                            salon.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
+                          )}>
+                            {salon.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-xs text-gray-300">
+                              <Mail className="w-3 h-3 text-purple-500" />
+                              {users[salon.ownerId]?.email || 'Loading...'}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-500 font-black uppercase tracking-widest">
+                              <User className="w-3 h-3 text-purple-500" />
+                              {users[salon.ownerId]?.role || 'Loading...'}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {salon.status === 'pending' && (
+                              <button
+                                onClick={() => approveSalon(salon.id)}
+                                className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all"
+                                title="Approve"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => toggleSalonVisibility(salon.id, salon.status)}
+                              className="p-2 bg-white/5 text-white rounded-lg hover:bg-white/10 transition-all border border-white/10"
+                              title={salon.status === 'active' ? 'Hide' : 'Show'}
+                            >
+                              {salon.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => deleteSalon(salon.id)}
+                              className="p-2 bg-red-600/10 text-red-500 rounded-lg hover:bg-red-600/20 transition-all border border-red-500/20"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {salons.length === 0 && (
+                  <div className="p-10 text-center text-gray-500 italic">No salons found.</div>
+                )}
+              </div>
+            </section>
+          </motion.div>
+        )}
+
+        {(activeTab === 'owners' || activeTab === 'users') && (
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              {activeTab === 'owners' ? <ShieldCheck className="text-purple-500" /> : <Users className="text-blue-500" />}
+              {activeTab === 'owners' ? 'Salon Owners' : 'Registered Users'}
+            </h2>
+            <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white/5 border-b border-white/10">
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">User</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Email</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Joined</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Role</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {allUsers
+                    .filter(u => activeTab === 'owners' ? u.role === 'salon_owner' : u.role === 'user')
+                    .map(user => {
+                      const userSalons = salons.filter(s => s.ownerId === user.uid);
+                      return (
+                        <tr key={user.uid} className="hover:bg-white/[0.02] transition-all">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {user.photoURL ? (
+                                <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center text-purple-400 font-black border border-white/10">
+                                  {user.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-bold">{user.name}</span>
+                                <span className="text-[10px] text-gray-500 font-mono uppercase tracking-tighter">{user.uid}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-400">
+                            <div className="flex items-center gap-2">
+                              <Mail className="w-3 h-3 text-gray-600" />
+                              {user.email}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-500">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3 h-3" />
+                                {format(user.createdAt.toDate(), 'MMM dd, yyyy')}
+                              </div>
+                              {activeTab === 'owners' && (
+                                <div className="flex items-center gap-2 text-purple-400 font-bold">
+                                  <Scissors className="w-3 h-3" />
+                                  {userSalons.length} Salon(s)
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                              user.role === 'salon_owner' ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"
+                            )}>
+                              {user.role}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {allUsers.filter(u => activeTab === 'owners' ? u.role === 'salon_owner' : u.role === 'user').length === 0 && (
+                <div className="p-10 text-center text-gray-500 italic">No users found in this category.</div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
