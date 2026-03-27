@@ -231,7 +231,7 @@ export const Dashboard: React.FC = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex flex-wrap gap-1 mb-1">
-                          {booking.services.map((service, idx) => (
+                          {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
                             <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
                               {service}
                             </span>
@@ -281,7 +281,7 @@ export const Dashboard: React.FC = () => {
                   >
                     <div>
                       <div className="flex flex-wrap gap-1 mb-1">
-                        {booking.services.map((service, idx) => (
+                        {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
                           <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
                             {service}
                           </span>
@@ -331,7 +331,7 @@ export const Dashboard: React.FC = () => {
                     </div>
                     <div>
                       <div className="flex flex-wrap gap-1 mb-1">
-                        {booking.services.map((service, idx) => (
+                        {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
                           <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
                             {service}
                           </span>

@@ -36,7 +36,10 @@
           "type": "object",
           "properties": {
             "lat": { "type": "number" },
-            "lng": { "type": "number" }
+            "lng": { "type": "number" },
+            "state": { "type": "string" },
+            "city": { "type": "string" },
+            "address": { "type": "string" }
           }
         },
         "status": { "type": "string", "enum": ["pending", "active", "hidden"], "description": "Salon approval status" },

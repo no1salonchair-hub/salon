@@ -121,7 +121,7 @@ export const BookingDetails: React.FC = () => {
                 <Scissors className="w-10 h-10" />
               </div>
               <div className="space-y-1">
-                {booking.services.map((service, idx) => (
+                {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
                   <h2 key={idx} className="text-xl font-bold">{service}</h2>
                 ))}
               </div>

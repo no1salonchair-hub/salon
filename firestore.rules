@@ -33,6 +33,9 @@ service cloud.firestore {
              doc.services is list &&
              doc.imageUrl is string &&
              doc.location is map && doc.location.lat is number && doc.location.lng is number &&
+             (!('state' in doc.location) || doc.location.state is string) &&
+             (!('city' in doc.location) || doc.location.city is string) &&
+             (!('address' in doc.location) || doc.location.address is string) &&
              doc.status in ['pending', 'active', 'hidden'] &&
              doc.subscriptionExpiry is timestamp &&
              doc.createdAt is timestamp;

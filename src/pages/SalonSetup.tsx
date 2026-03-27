@@ -6,6 +6,7 @@ import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } 
 import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Service, Salon } from '../types';
+import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { toast } from 'sonner';
@@ -21,7 +22,37 @@ export const SalonSetup: React.FC = () => {
   const [newServicePrice, setNewServicePrice] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; state?: string; city?: string; address?: string } | null>(null);
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [address, setAddress] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
+      const data = await response.json();
+      if (data && data.address) {
+        const state = data.address.state || '';
+        const city = data.address.city || data.address.town || data.address.village || data.address.suburb || '';
+        const road = data.address.road || '';
+        const neighborhood = data.address.neighborhood || data.address.suburb || '';
+        const fullAddress = [road, neighborhood].filter(Boolean).join(', ');
+
+        // Try to match state with our list
+        const matchedState = INDIAN_STATES.find(s => s.toLowerCase() === state.toLowerCase()) || '';
+        
+        return {
+          state: matchedState,
+          city: city,
+          address: fullAddress
+        };
+      }
+    } catch (error) {
+      console.error('Error in reverse geocoding:', error);
+    }
+    return null;
+  };
 
   useEffect(() => {
     const checkSalon = async () => {
@@ -36,6 +67,9 @@ export const SalonSetup: React.FC = () => {
           setServices(salonData.services);
           setImagePreview(salonData.imageUrl);
           setLocation(salonData.location);
+          setSelectedState(salonData.location.state || '');
+          setSelectedCity(salonData.location.city || '');
+          setAddress(salonData.location.address || '');
           // We don't set the 'image' file state here because we already have the imageUrl
         }
       } catch (error) {
@@ -48,20 +82,34 @@ export const SalonSetup: React.FC = () => {
     }
 
     if (navigator.geolocation && !location) {
+      setIsDetectingLocation(true);
       const geoTimeout = setTimeout(() => {
+        setIsDetectingLocation(false);
         console.warn('Geolocation request timed out');
       }, 10000);
 
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           clearTimeout(geoTimeout);
+          const { latitude, longitude } = position.coords;
+          const geoData = await reverseGeocode(latitude, longitude);
+          
           setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+            lat: latitude,
+            lng: longitude,
+            ...geoData
           });
+
+          if (geoData) {
+            if (geoData.state) setSelectedState(geoData.state);
+            if (geoData.city) setSelectedCity(geoData.city);
+            if (geoData.address) setAddress(geoData.address);
+          }
+          setIsDetectingLocation(false);
         },
         (error) => {
           clearTimeout(geoTimeout);
+          setIsDetectingLocation(false);
           console.error('Error getting location:', error);
         },
         { timeout: 10000, enableHighAccuracy: false }
@@ -147,7 +195,12 @@ export const SalonSetup: React.FC = () => {
           name: salonName,
           services,
           imageUrl,
-          location,
+          location: {
+            ...location,
+            state: selectedState,
+            city: selectedCity,
+            address: address,
+          },
         };
         await updateDoc(doc(db, 'salons', salonId), updates);
         console.log('Salon document updated successfully.');
@@ -159,7 +212,12 @@ export const SalonSetup: React.FC = () => {
           name: salonName,
           services,
           imageUrl,
-          location,
+          location: {
+            ...location!,
+            state: selectedState,
+            city: selectedCity,
+            address: address,
+          },
           status: 'pending',
           subscriptionExpiry: Timestamp.now(),
           createdAt: Timestamp.now(),
@@ -299,20 +357,80 @@ export const SalonSetup: React.FC = () => {
             </div>
           </div>
 
-          {/* Location */}
+          {/* Location Details */}
+          <div className="space-y-6">
+            <label className="block text-sm font-bold uppercase tracking-widest text-gray-500">Location Details</label>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">State</label>
+                <select
+                  required
+                  value={selectedState}
+                  onChange={(e) => {
+                    setSelectedState(e.target.value);
+                    setSelectedCity(''); // Reset city when state changes
+                  }}
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none"
+                >
+                  <option value="" disabled className="bg-gray-900">Select State</option>
+                  {INDIAN_STATES.map(state => (
+                    <option key={state} value={state} className="bg-gray-900">{state}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">City / District</label>
+                <select
+                  required
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none disabled:opacity-50"
+                  disabled={!selectedState}
+                >
+                  <option value="" disabled className="bg-gray-900">Select City</option>
+                  {selectedState && STATE_CITIES[selectedState]?.map(city => (
+                    <option key={city} value={city} className="bg-gray-900">{city}</option>
+                  ))}
+                  <option value="Other" className="bg-gray-900">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address / Area Name</label>
+              <textarea
+                required
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Enter specific address or area name"
+                rows={2}
+                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Location Auto-detection */}
           <div className={cn(
             "p-6 rounded-2xl flex items-center gap-4 border transition-all",
             location ? "bg-blue-500/10 border-blue-500/20" : "bg-yellow-500/10 border-yellow-500/20"
           )}>
-            <MapPin className={cn("w-8 h-8", location ? "text-blue-400" : "text-yellow-400")} />
+            {isDetectingLocation ? (
+              <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+            ) : (
+              <MapPin className={cn("w-8 h-8", location ? "text-blue-400" : "text-yellow-400")} />
+            )}
             <div>
               <h4 className={cn("font-bold", location ? "text-blue-400" : "text-yellow-400")}>
-                {location ? 'Location Detected' : 'Location Required'}
+                {isDetectingLocation ? 'Detecting Location...' : location ? 'Location Detected' : 'Location Required'}
               </h4>
               <p className={cn("text-sm", location ? "text-blue-300/60" : "text-yellow-300/60")}>
-                {location 
-                  ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` 
-                  : 'Please allow location access in your browser to proceed.'}
+                {isDetectingLocation 
+                  ? 'Fetching your coordinates and address...'
+                  : location 
+                    ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` 
+                    : 'Please allow location access in your browser to proceed.'}
               </p>
             </div>
           </div>

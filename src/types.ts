@@ -25,6 +25,9 @@ export interface Salon {
   location: {
     lat: number;
     lng: number;
+    state?: string;
+    city?: string;
+    address?: string;
   };
   status: 'pending' | 'active' | 'hidden';
   subscriptionExpiry: Timestamp;
