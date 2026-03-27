@@ -17,10 +17,22 @@ export const SalonDetails: React.FC = () => {
   const navigate = useNavigate();
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
+
+  const toggleService = (service: Service) => {
+    setSelectedServices(prev => {
+      const exists = prev.find(s => s.name === service.name);
+      if (exists) {
+        return prev.filter(s => s.name !== service.name);
+      }
+      return [...prev, service];
+    });
+  };
+
+  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
 
   const timeSlots = [
     '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -63,7 +75,7 @@ export const SalonDetails: React.FC = () => {
   }, [salonId, navigate]);
 
   const handleBooking = async () => {
-    if (!profile || !salon || !selectedService || !selectedTime) return;
+    if (!profile || !salon || selectedServices.length === 0 || !selectedTime) return;
 
     setBookingLoading(true);
     try {
@@ -79,7 +91,7 @@ export const SalonDetails: React.FC = () => {
       const bookingData: Omit<Booking, 'id'> = {
         userId: profile.uid,
         salonId: salon.id,
-        service: selectedService.name,
+        services: selectedServices.map(s => s.name),
         dateTime: Timestamp.fromDate(bookingDate),
         status: 'pending',
         createdAt: Timestamp.now(),
@@ -150,34 +162,37 @@ export const SalonDetails: React.FC = () => {
               Available Services
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {salon.services.map((service, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setSelectedService(service)}
-                  className={cn(
-                    "p-6 bg-white/5 border rounded-2xl cursor-pointer transition-all flex items-center justify-between group",
-                    selectedService?.name === service.name
-                      ? "border-purple-500 bg-purple-500/10"
-                      : "border-white/10 hover:border-white/20"
-                  )}
-                >
-                  <div>
-                    <h3 className="font-bold text-lg">{service.name}</h3>
-                    <p className="text-sm text-gray-500">Premium Service</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-purple-400">₹{service.price}</p>
-                    <div className={cn(
-                      "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all mt-2 ml-auto",
-                      selectedService?.name === service.name
-                        ? "bg-purple-500 border-purple-500"
-                        : "border-white/20 group-hover:border-white/40"
-                    )}>
-                      {selectedService?.name === service.name && <CheckCircle className="w-4 h-4 text-white" />}
+              {salon.services.map((service, idx) => {
+                const isSelected = selectedServices.some(s => s.name === service.name);
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => toggleService(service)}
+                    className={cn(
+                      "p-6 bg-white/5 border rounded-2xl cursor-pointer transition-all flex items-center justify-between group",
+                      isSelected
+                        ? "border-purple-500 bg-purple-500/10"
+                        : "border-white/10 hover:border-white/20"
+                    )}
+                  >
+                    <div>
+                      <h3 className="font-bold text-lg">{service.name}</h3>
+                      <p className="text-sm text-gray-500">Premium Service</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-black text-purple-400">₹{service.price}</p>
+                      <div className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all mt-2 ml-auto",
+                        isSelected
+                          ? "bg-purple-500 border-purple-500"
+                          : "border-white/20 group-hover:border-white/40"
+                      )}>
+                        {isSelected && <CheckCircle className="w-4 h-4 text-white" />}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -241,12 +256,16 @@ export const SalonDetails: React.FC = () => {
 
               <div className="pt-4 border-t border-white/5 space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Service</span>
-                  <span className="font-bold">{selectedService?.name || 'Not selected'}</span>
+                  <span className="text-gray-500">Services</span>
+                  <span className="font-bold text-right truncate ml-4">
+                    {selectedServices.length > 0 
+                      ? selectedServices.map(s => s.name).join(', ') 
+                      : 'Not selected'}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Price</span>
-                  <span className="font-black text-purple-400">₹{selectedService?.price || 0}</span>
+                  <span className="font-black text-purple-400">₹{totalPrice}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Booking Fee</span>
@@ -255,13 +274,13 @@ export const SalonDetails: React.FC = () => {
                 <div className="pt-3 border-t border-white/5 flex justify-between items-center">
                   <span className="font-bold">Total</span>
                   <span className="text-2xl font-black bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                    ₹{selectedService?.price || 0}
+                    ₹{totalPrice}
                   </span>
                 </div>
               </div>
 
               <button
-                disabled={!selectedService || !selectedTime || bookingLoading}
+                disabled={selectedServices.length === 0 || !selectedTime || bookingLoading}
                 onClick={handleBooking}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >

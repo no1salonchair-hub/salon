@@ -120,7 +120,11 @@ export const BookingDetails: React.FC = () => {
               <div className="w-20 h-20 bg-purple-600/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-purple-400">
                 <Scissors className="w-10 h-10" />
               </div>
-              <h2 className="text-xl font-bold">{booking.service}</h2>
+              <div className="space-y-1">
+                {booking.services.map((service, idx) => (
+                  <h2 key={idx} className="text-xl font-bold">{service}</h2>
+                ))}
+              </div>
               <span className={cn(
                 "inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mt-2",
                 booking.status === 'accepted' ? "bg-green-500/20 text-green-400" : 

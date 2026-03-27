@@ -41,7 +41,7 @@ service cloud.firestore {
     function isValidBooking(doc) {
       return doc.userId is string &&
              doc.salonId is string &&
-             doc['service'] is string &&
+             doc.services is list && doc.services.size() > 0 &&
              doc.dateTime is timestamp &&
              doc.status in ['pending', 'accepted', 'rejected', 'completed'] &&
              doc.createdAt is timestamp;

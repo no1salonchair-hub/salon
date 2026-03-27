@@ -230,7 +230,13 @@ export const Dashboard: React.FC = () => {
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-black text-lg">{booking.service}</h4>
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {booking.services.map((service, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
+                              {service}
+                            </span>
+                          ))}
+                        </div>
                         <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
                           {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
                         </p>
@@ -274,7 +280,13 @@ export const Dashboard: React.FC = () => {
                     className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between"
                   >
                     <div>
-                      <h4 className="font-black text-lg">{booking.service}</h4>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {booking.services.map((service, idx) => (
+                          <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
+                            {service}
+                          </span>
+                        ))}
+                      </div>
                       <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
                         {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
                       </p>
@@ -318,7 +330,13 @@ export const Dashboard: React.FC = () => {
                       <Scissors className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-black">{booking.service}</h3>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {booking.services.map((service, idx) => (
+                          <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
+                            {service}
+                          </span>
+                        ))}
+                      </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />

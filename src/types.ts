@@ -35,7 +35,7 @@ export interface Booking {
   id: string;
   userId: string;
   salonId: string;
-  service: string;
+  services: string[];
   dateTime: Timestamp;
   status: 'pending' | 'accepted' | 'rejected' | 'completed';
   createdAt: Timestamp;

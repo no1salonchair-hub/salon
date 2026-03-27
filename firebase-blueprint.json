@@ -53,12 +53,16 @@
         "id": { "type": "string", "description": "Unique booking ID" },
         "userId": { "type": "string", "description": "UID of the user who booked" },
         "salonId": { "type": "string", "description": "ID of the salon booked" },
-        "service": { "type": "string", "description": "Service name" },
+        "services": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of service names"
+        },
         "dateTime": { "type": "string", "format": "date-time", "description": "Booking date and time" },
         "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"], "description": "Booking status" },
         "createdAt": { "type": "string", "format": "date-time", "description": "When the booking was created" }
       },
-      "required": ["id", "userId", "salonId", "service", "dateTime", "status", "createdAt"]
+      "required": ["id", "userId", "salonId", "services", "dateTime", "status", "createdAt"]
     },
     "Message": {
       "title": "Message",
