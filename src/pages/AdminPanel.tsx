@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
-import { Salon, Payment } from '../types';
-import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle } from 'lucide-react';
+import { Salon, Payment, UserProfile } from '../types';
+import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, addDays } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -13,6 +13,7 @@ export const AdminPanel: React.FC = () => {
   const { profile } = useAuth();
   const [salons, setSalons] = useState<Salon[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [users, setUsers] = useState<Record<string, UserProfile>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,8 +21,32 @@ export const AdminPanel: React.FC = () => {
 
     const unsubscribeSalons = onSnapshot(
       query(collection(db, 'salons'), orderBy('createdAt', 'desc')),
-      (snapshot) => {
-        setSalons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Salon[]);
+      async (snapshot) => {
+        const salonList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Salon[];
+        setSalons(salonList);
+
+        // Fetch user profiles for salon owners
+        const ownerIds = [...new Set(salonList.map(s => s.ownerId))];
+        const newUsers = { ...users };
+        let updated = false;
+
+        for (const ownerId of ownerIds) {
+          if (!newUsers[ownerId]) {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', ownerId));
+              if (userSnap.exists()) {
+                newUsers[ownerId] = userSnap.data() as UserProfile;
+                updated = true;
+              }
+            } catch (error) {
+              console.error('Error fetching owner profile:', error);
+            }
+          }
+        }
+
+        if (updated) {
+          setUsers(newUsers);
+        }
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'salons');
@@ -197,7 +222,16 @@ export const AdminPanel: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-xs text-gray-500 font-mono">{salon.ownerId.slice(0, 8)}...</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-xs text-gray-300">
+                        <Mail className="w-3 h-3 text-purple-500" />
+                        {users[salon.ownerId]?.email || 'Loading...'}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-black uppercase tracking-widest">
+                        <User className="w-3 h-3 text-purple-500" />
+                        {users[salon.ownerId]?.role || 'Loading...'}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">

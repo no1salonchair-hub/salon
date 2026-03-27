@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Service, Salon } from '../types';
@@ -24,23 +24,30 @@ export const SalonSetup: React.FC = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (profile?.role === 'salon_owner') {
-      // Check if salon already exists
-      const checkSalon = async () => {
-        try {
-          const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            navigate('/dashboard');
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, 'salons');
+    const checkSalon = async () => {
+      if (!profile) return;
+      
+      try {
+        const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const salonData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Salon;
+          setSalonName(salonData.name);
+          setServices(salonData.services);
+          setImagePreview(salonData.imageUrl);
+          setLocation(salonData.location);
+          // We don't set the 'image' file state here because we already have the imageUrl
         }
-      };
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'salons');
+      }
+    };
+
+    if (profile?.role === 'salon_owner') {
       checkSalon();
     }
 
-    if (navigator.geolocation) {
+    if (navigator.geolocation && !location) {
       const geoTimeout = setTimeout(() => {
         console.warn('Geolocation request timed out');
       }, 10000);
@@ -107,40 +114,59 @@ export const SalonSetup: React.FC = () => {
     }
 
     setLoading(true);
-    console.log('Starting salon setup process...');
-    const toastId = toast.loading('Setting up your salon...');
+    console.log('Starting salon setup/update process...');
+    const toastId = toast.loading(profile.role === 'salon_owner' ? 'Updating your salon...' : 'Setting up your salon...');
     
     try {
-      if (!image) throw new Error('No image selected');
-      console.log('Image to process:', image.name, image.size, image.type);
-
-      // 1. Convert Image to Base64 (already compressed in handleImageChange)
-      console.log('Converting image to base64...');
-      const imageUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(image);
-      });
+      let imageUrl = imagePreview || '';
       
-      console.log('Image converted to base64 successfully. Length:', imageUrl.length);
-      toast.loading('Creating salon profile...', { id: toastId });
+      if (image) {
+        console.log('New image selected, converting to base64...');
+        imageUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(image);
+        });
+      }
+      
+      if (!imageUrl) throw new Error('No image selected');
+      
+      console.log('Image processed successfully.');
+      toast.loading(profile.role === 'salon_owner' ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
 
-      // 2. Create Salon
-      console.log('Creating salon document in Firestore...');
-      const salonData: Omit<Salon, 'id'> = {
-        ownerId: profile.uid,
-        name: salonName,
-        services,
-        imageUrl,
-        location,
-        status: 'pending',
-        subscriptionExpiry: Timestamp.now(), // Will be updated by admin
-        createdAt: Timestamp.now(),
-      };
-
-      const docRef = await addDoc(collection(db, 'salons'), salonData);
-      console.log('Salon document created with ID:', docRef.id);
+      // Check if salon already exists
+      const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        // Update existing salon
+        const salonId = snapshot.docs[0].id;
+        console.log('Updating existing salon document:', salonId);
+        const updates: Partial<Salon> = {
+          name: salonName,
+          services,
+          imageUrl,
+          location,
+        };
+        await updateDoc(doc(db, 'salons', salonId), updates);
+        console.log('Salon document updated successfully.');
+      } else {
+        // Create new salon
+        console.log('Creating new salon document in Firestore...');
+        const salonData: Omit<Salon, 'id'> = {
+          ownerId: profile.uid,
+          name: salonName,
+          services,
+          imageUrl,
+          location,
+          status: 'pending',
+          subscriptionExpiry: Timestamp.now(),
+          createdAt: Timestamp.now(),
+        };
+        const docRef = await addDoc(collection(db, 'salons'), salonData);
+        console.log('Salon document created with ID:', docRef.id);
+      }
       
       // 3. Update User Role (if not already)
       if (profile.role !== 'salon_owner') {
@@ -149,12 +175,12 @@ export const SalonSetup: React.FC = () => {
         console.log('User role updated successfully');
       }
 
-      toast.success('Salon setup complete! Redirecting to dashboard...', { id: toastId });
+      toast.success(profile.role === 'salon_owner' ? 'Salon updated successfully!' : 'Salon setup complete!', { id: toastId });
       navigate('/dashboard');
     } catch (error) {
-      console.error('Error during salon setup:', error);
-      toast.error('Failed to setup salon. Please try again.', { id: toastId });
-      handleFirestoreError(error, OperationType.CREATE, 'salons');
+      console.error('Error during salon setup/update:', error);
+      toast.error('Failed to save salon details. Please try again.', { id: toastId });
+      handleFirestoreError(error, profile.role === 'salon_owner' ? OperationType.UPDATE : OperationType.CREATE, 'salons');
     } finally {
       setLoading(false);
     }
