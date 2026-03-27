@@ -37,7 +37,7 @@ export const BookingDetails: React.FC = () => {
             setSalon({ id: salonDoc.id, ...salonDoc.data() } as Salon);
           }
         } catch (error) {
-          handleFirestoreError(auth, error, OperationType.GET, `salons/${bookingData.salonId}`);
+          handleFirestoreError(error, OperationType.GET, `salons/${bookingData.salonId}`);
         }
 
         // Fetch Messages
@@ -49,7 +49,7 @@ export const BookingDetails: React.FC = () => {
           setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[]);
           setLoading(false);
         }, (error) => {
-          handleFirestoreError(auth, error, OperationType.LIST, `bookings/${bookingId}/messages`);
+          handleFirestoreError(error, OperationType.LIST, `bookings/${bookingId}/messages`);
         });
 
         return () => unsubscribeMessages();
@@ -58,7 +58,7 @@ export const BookingDetails: React.FC = () => {
         navigate('/dashboard');
       }
     }, (error) => {
-      handleFirestoreError(auth, error, OperationType.GET, `bookings/${bookingId}`);
+      handleFirestoreError(error, OperationType.GET, `bookings/${bookingId}`);
     });
 
     return () => unsubscribeBooking();
@@ -84,7 +84,7 @@ export const BookingDetails: React.FC = () => {
       });
       setNewMessage('');
     } catch (error) {
-      handleFirestoreError(auth, error, OperationType.CREATE, path);
+      handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
 

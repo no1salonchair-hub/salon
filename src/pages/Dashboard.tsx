@@ -2,8 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth } from '../components/AuthContext';
-import { handleFirestoreError } from '../lib/error-handler';
-import { Booking, Salon, Payment, OperationType } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { Booking, Salon, Payment } from '../types';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { format } from 'date-fns';
+import { cn } from '../lib/utils';
+import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -37,13 +42,13 @@ export const Dashboard: React.FC = () => {
             setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
             setLoading(false);
           }, (error) => {
-            handleFirestoreError(auth, error, OperationType.LIST, 'bookings');
+            handleFirestoreError(error, OperationType.LIST, 'bookings');
           });
         } else {
           setLoading(false);
         }
       }, (error) => {
-        handleFirestoreError(auth, error, OperationType.LIST, 'salons');
+        handleFirestoreError(error, OperationType.LIST, 'salons');
       });
     } else {
       // Fetch User's Bookings
@@ -56,7 +61,7 @@ export const Dashboard: React.FC = () => {
         setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
         setLoading(false);
       }, (error) => {
-        handleFirestoreError(auth, error, OperationType.LIST, 'bookings');
+        handleFirestoreError(error, OperationType.LIST, 'bookings');
       });
     }
 
@@ -71,7 +76,7 @@ export const Dashboard: React.FC = () => {
     try {
       await updateDoc(doc(db, 'bookings', bookingId), { status });
     } catch (error) {
-      handleFirestoreError(auth, error, OperationType.UPDATE, path);
+      handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
