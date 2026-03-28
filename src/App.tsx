@@ -12,6 +12,8 @@ import { AdminPanel } from './pages/AdminPanel';
 import { SalonDetails } from './pages/SalonDetails';
 import { Payment } from './pages/Payment';
 import { Profile } from './pages/Profile';
+import { Privacy } from './pages/Privacy';
+import { Contact } from './pages/Contact';
 import { Toaster } from 'sonner';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -53,6 +55,8 @@ const App: React.FC = () => {
             <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
             <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/contact" element={<Contact />} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

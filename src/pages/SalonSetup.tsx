@@ -148,7 +148,7 @@ export const SalonSetup: React.FC = () => {
     e.preventDefault();
     if (!profile) return;
 
-    if (!image) {
+    if (!image && !imagePreview) {
       toast.error('Please upload a salon image');
       return;
     }
@@ -437,7 +437,7 @@ export const SalonSetup: React.FC = () => {
 
           {/* Submit */}
           <div className="space-y-4">
-            {!image && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Please upload a salon image</p>}
+            {!image && !imagePreview && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Please upload a salon image</p>}
             {services.length === 0 && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Please add at least one service</p>}
             {!location && <p className="text-red-400 text-xs text-center font-bold uppercase tracking-tighter">Location access is required to list your salon</p>}
             
@@ -447,7 +447,9 @@ export const SalonSetup: React.FC = () => {
               className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-              {loading ? 'Setting up your salon...' : 'Complete Setup'}
+              {loading 
+                ? (profile.role === 'salon_owner' ? 'Updating salon...' : 'Setting up salon...') 
+                : (profile.role === 'salon_owner' ? 'Save Changes' : 'Complete Setup')}
             </button>
           </div>
         </form>

@@ -40,26 +40,31 @@ console.log('Storage Bucket:', firebaseConfig.storageBucket);
 export const googleProvider = new GoogleAuthProvider();
 
 // Connection test with retry logic
-async function testConnection(retries = 3) {
+async function testConnection(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`Testing connection to Firestore (Attempt ${i + 1}/${retries})...`);
+      // Use getDocFromServer to force a network check
       await getDocFromServer(doc(db, 'test', 'connection'));
       console.log('Firestore connection successful');
       return;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Firestore connection test attempt ${i + 1} failed:`, error);
-      if (error instanceof Error) {
-        if (error.message.includes('not-found')) {
-          console.log('Firestore connection test: Document not found (this is expected if the test doc doesn\'t exist, but it means we connected!)');
-          return;
-        }
-        if (error.message.includes('the client is offline') && i < retries - 1) {
-          console.log('Client is offline, retrying in 2 seconds...');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          continue;
-        }
+      
+      // If it's a 'not-found' error, it means we actually reached the server!
+      if (error.code === 'not-found' || error.message?.includes('not-found')) {
+        console.log('Firestore connection test: Document not found (this is expected, but it means we connected!)');
+        return;
       }
+
+      // If it's an offline or network error, retry with backoff
+      if ((error.message?.includes('offline') || error.message?.includes('network')) && i < retries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, i), 5000);
+        console.log(`Firestore connection test: Client is offline, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
       if (i === retries - 1) {
         console.error("Final Firestore connection test failed.");
       }

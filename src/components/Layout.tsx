@@ -4,6 +4,24 @@ import { Home, LayoutDashboard, User, LogOut, Scissors, PlusCircle, ShieldCheck 
 import { useAuth } from './AuthContext';
 import { cn } from '../lib/utils';
 
+const SalonChairIcon = ({ className }: { className?: string }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M6 3l3 12h12c0 1-1 2-2 2H9l-3-12z" />
+    <path d="M8 10h10l2 5" />
+    <path d="M13 17v4" />
+    <path d="M11 19h2" />
+    <path d="M9 22h8" />
+  </svg>
+);
+
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, logout } = useAuth();
   const navigate = useNavigate();
@@ -31,9 +49,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-600/20">
             <Scissors className="w-6 h-6 text-white" />
           </div>
-          <span className="text-xl font-black tracking-tighter uppercase italic">
-            Salon Chair
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-black tracking-tighter uppercase italic">
+              Salon Chair
+            </span>
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-600/20">
+              <SalonChairIcon className="w-6 h-6 text-white" />
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-6">
@@ -98,6 +121,24 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {children}
+        <footer className="mt-20 py-10 border-t border-white/5 text-center">
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-bold mb-4">
+            &copy; 2026 Salon Chair
+          </p>
+          <div className="flex items-center justify-center gap-6">
+            <NavLink to="/privacy" className="text-gray-500 hover:text-purple-400 text-[10px] uppercase tracking-widest transition-all">
+              Privacy Policy
+            </NavLink>
+            <span className="text-gray-800">|</span>
+            <NavLink to="/contact" className="text-gray-500 hover:text-purple-400 text-[10px] uppercase tracking-widest transition-all">
+              Contact Us
+            </NavLink>
+            <span className="text-gray-800">|</span>
+            <span className="text-gray-500 text-[10px] uppercase tracking-widest">
+              Terms of Service
+            </span>
+          </div>
+        </footer>
       </main>
     </div>
   );

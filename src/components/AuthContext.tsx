@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { toast } from 'sonner';
@@ -52,11 +52,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (firebaseUser) {
           const path = `users/${firebaseUser.uid}`;
           
-          const fetchProfile = async (retries = 3): Promise<void> => {
+          const fetchProfile = async (retries = 5): Promise<void> => {
             for (let i = 0; i < retries; i++) {
               try {
                 console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
-                const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                
+                // On the first attempt, try to get from server to force a connection
+                // On subsequent attempts, use standard getDoc which can use cache
+                const userDoc = i === 0 
+                  ? await getDocFromServer(doc(db, 'users', firebaseUser.uid))
+                  : await getDoc(doc(db, 'users', firebaseUser.uid));
+                
                 const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
                 
                 if (userDoc.exists()) {
@@ -84,9 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return; // Success
               } catch (err: any) {
                 console.error(`AuthContext: Profile fetch attempt ${i + 1} failed:`, err);
-                if (err.message?.includes('offline') && i < retries - 1) {
-                  console.log('AuthContext: Client is offline, retrying in 2 seconds...');
-                  await new Promise(resolve => setTimeout(resolve, 2000));
+                if ((err.message?.includes('offline') || err.message?.includes('network')) && i < retries - 1) {
+                  const delay = Math.min(1000 * Math.pow(2, i), 5000); // Exponential backoff
+                  console.log(`AuthContext: Connection issue, retrying in ${delay}ms...`);
+                  await new Promise(resolve => setTimeout(resolve, delay));
                   continue;
                 }
                 if (i === retries - 1) {
