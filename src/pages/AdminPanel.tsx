@@ -3,11 +3,12 @@ import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc, Time
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { Salon, Payment, UserProfile } from '../types';
-import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, startOfDay, isSameDay } from 'date-fns';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 export const AdminPanel: React.FC = () => {
   const { profile } = useAuth();
@@ -16,7 +17,26 @@ export const AdminPanel: React.FC = () => {
   const [users, setUsers] = useState<Record<string, UserProfile>>({});
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments'>('overview');
+
+  const totalIncome = payments
+    .filter(p => p.status === 'success')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const dayWiseIncome = React.useMemo(() => {
+    const daily: Record<string, number> = {};
+    payments
+      .filter(p => p.status === 'success')
+      .forEach(p => {
+        const date = format(p.createdAt.toDate(), 'MMM dd');
+        daily[date] = (daily[date] || 0) + p.amount;
+      });
+    
+    return Object.entries(daily)
+      .map(([date, amount]) => ({ date, amount }))
+      .reverse() // Most recent first in data, but chart usually wants chronological
+      .slice(-7); // Last 7 days
+  }, [payments]);
 
   useEffect(() => {
     if (profile?.role !== 'admin') return;
@@ -207,6 +227,16 @@ export const AdminPanel: React.FC = () => {
         >
           <Users className="w-4 h-4" />
           Users
+        </button>
+        <button
+          onClick={() => setActiveTab('payments')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+            activeTab === 'payments' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <DollarSign className="w-4 h-4" />
+          Payments
         </button>
       </div>
 
@@ -420,6 +450,130 @@ export const AdminPanel: React.FC = () => {
                 <div className="p-10 text-center text-gray-500 italic">No users found in this category.</div>
               )}
             </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'payments' && (
+          <motion.div
+            key="payments"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-10"
+          >
+            {/* Payment Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-2">Total Income</p>
+                  <h3 className="text-5xl font-black text-green-500">₹{totalIncome}</h3>
+                </div>
+                <div className="w-16 h-16 bg-green-600/20 rounded-2xl flex items-center justify-center text-green-400">
+                  <DollarSign className="w-8 h-8" />
+                </div>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-2">Success Rate</p>
+                  <h3 className="text-5xl font-black text-blue-500">
+                    {payments.length > 0 ? Math.round((payments.filter(p => p.status === 'success').length / payments.length) * 100) : 0}%
+                  </h3>
+                </div>
+                <div className="w-16 h-16 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400">
+                  <TrendingUp className="w-8 h-8" />
+                </div>
+              </div>
+            </div>
+
+            {/* Income Chart */}
+            <section className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <TrendingUp className="text-purple-500" />
+                Income Trend (Last 7 Days)
+              </h2>
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dayWiseIncome}>
+                    <defs>
+                      <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#9333ea" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#9333ea" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#6b7280" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      stroke="#6b7280" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                      tickFormatter={(value) => `₹${value}`}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                      itemStyle={{ color: '#9333ea', fontWeight: 'bold' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="amount" 
+                      stroke="#9333ea" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorIncome)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {/* Detailed Payment History */}
+            <section className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <CreditCard className="text-green-500" />
+                Payment History
+              </h2>
+              <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Salon</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Amount</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Date</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {payments.map(payment => (
+                      <tr key={payment.id} className="hover:bg-white/[0.02] transition-all">
+                        <td className="px-6 py-4 text-sm font-bold">
+                          {salons.find(s => s.id === payment.salonId)?.name || 'Unknown Salon'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-green-400 font-black">
+                          ₹{payment.amount}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-500">
+                          {format(payment.createdAt.toDate(), 'MMM dd, yyyy HH:mm')}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                            payment.status === 'success' ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                          )}>
+                            {payment.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </motion.div>
         )}
       </AnimatePresence>
