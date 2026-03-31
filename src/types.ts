@@ -55,6 +55,7 @@ export interface Message {
 export interface Payment {
   id: string;
   salonId: string;
+  salonName?: string;
   amount: number;
   status: 'pending' | 'success';
   createdAt: Timestamp;

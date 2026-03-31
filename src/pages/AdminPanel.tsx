@@ -293,9 +293,10 @@ export const AdminPanel: React.FC = () => {
                       <CreditCard className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-white">₹{payment.amount} Payment</h3>
-                      <p className="text-xs text-white/40">Salon ID: {payment.salonId}</p>
-                      <p className="text-xs text-white/20">{format(payment.createdAt.toDate(), 'MMM dd, hh:mm a')}</p>
+                      <h3 className="font-bold text-white">{payment.salonName || 'Unknown Salon'}</h3>
+                      <p className="text-xs text-green-400 font-black tracking-widest uppercase">₹{payment.amount} Payment</p>
+                      <p className="text-[10px] text-white/20 font-mono mt-1">ID: {payment.id}</p>
+                      <p className="text-[10px] text-white/40 mt-1">{format(payment.createdAt.toDate(), 'MMM dd, hh:mm a')}</p>
                     </div>
                   </div>
                   <button
@@ -342,10 +343,11 @@ export const AdminPanel: React.FC = () => {
                       <td className="px-6 py-4">
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                          salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? "bg-red-500/20 text-red-400" :
                           salon.status === 'active' ? "bg-green-500/20 text-green-400" : 
                           salon.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
                         )}>
-                          {salon.status}
+                          {salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? 'expired' : salon.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -373,10 +375,16 @@ export const AdminPanel: React.FC = () => {
                           )}
                           <button
                             onClick={() => toggleSalonVisibility(salon.id, salon.status)}
-                            className="p-2 bg-white/5 text-white/60 rounded-lg hover:bg-white/10 transition-all border border-white/10 shadow-sm"
-                            title={salon.status === 'active' ? 'Hide' : 'Show'}
+                            disabled={salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date()}
+                            className={cn(
+                              "p-2 rounded-lg transition-all border shadow-sm",
+                              salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() 
+                                ? "bg-red-500/10 text-red-400 border-red-500/20 cursor-not-allowed" 
+                                : "bg-white/5 text-white/60 hover:bg-white/10 border-white/10"
+                            )}
+                            title={salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? 'Expired' : (salon.status === 'active' ? 'Hide' : 'Show')}
                           >
-                            {salon.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? <AlertTriangle className="w-4 h-4" /> : (salon.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />)}
                           </button>
                           <button
                             onClick={() => setSalonToDelete(salon.id)}
@@ -574,7 +582,7 @@ export const AdminPanel: React.FC = () => {
                   {payments.map(payment => (
                     <tr key={payment.id} className="hover:bg-white/5 transition-all">
                       <td className="px-6 py-4 text-sm font-bold text-white">
-                        {salons.find(s => s.id === payment.salonId)?.name || 'Unknown Salon'}
+                        {payment.salonName || salons.find(s => s.id === payment.salonId)?.name || 'Unknown Salon'}
                       </td>
                       <td className="px-6 py-4 text-sm text-green-400 font-black">
                         ₹{payment.amount}
