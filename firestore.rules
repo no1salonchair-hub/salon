@@ -80,6 +80,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (isOwner(resource.data.ownerId) || isAdmin()) && 
                     isValidSalon(request.resource.data) && 
                     (isAdmin() || (request.resource.data.status == resource.data.status && request.resource.data.subscriptionExpiry == resource.data.subscriptionExpiry));
+      allow delete: if isAdmin();
     }
 
     match /bookings/{bookingId} {

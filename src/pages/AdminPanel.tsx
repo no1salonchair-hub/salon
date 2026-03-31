@@ -17,6 +17,8 @@ export const AdminPanel: React.FC = () => {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments'>('overview');
+  const [salonToDelete, setSalonToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const totalIncome = payments
     .filter(p => p.status === 'success')
@@ -132,12 +134,15 @@ export const AdminPanel: React.FC = () => {
   };
 
   const deleteSalon = async (salonId: string) => {
-    if (!window.confirm('Are you sure you want to delete this salon?')) return;
     const path = `salons/${salonId}`;
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'salons', salonId));
+      setSalonToDelete(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -172,6 +177,37 @@ export const AdminPanel: React.FC = () => {
           <p className="text-white/60">Manage salons, verify payments, and oversee the marketplace.</p>
         </div>
       </div>
+
+      {salonToDelete && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 mb-6 mx-auto">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-white text-center mb-2">Delete Salon?</h3>
+            <p className="text-white/60 text-center mb-8">
+              Are you sure you want to delete <span className="text-white font-bold">{salons.find(s => s.id === salonToDelete)?.name}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setSalonToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-white/5 text-white rounded-2xl font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteSalon(salonToDelete)}
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -343,7 +379,7 @@ export const AdminPanel: React.FC = () => {
                             {salon.status === 'active' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                           <button
-                            onClick={() => deleteSalon(salon.id)}
+                            onClick={() => setSalonToDelete(salon.id)}
                             className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all border border-red-500/20 shadow-sm"
                             title="Delete"
                           >
