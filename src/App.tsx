@@ -68,6 +68,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" />;
   }
 
+  // Admin password check for every session
+  if (user.email === 'no1salonchair@gmail.com' && sessionStorage.getItem('admin_verified') !== 'true') {
+    console.log('ProtectedRoute: Admin not verified in this session, redirecting to /login');
+    return <Navigate to="/login" />;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Scissors, LogIn, Loader2 } from 'lucide-react';
+import { Scissors, LogIn, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../components/AuthContext';
+import { toast } from 'sonner';
 
 const SalonChairIcon = ({ className }: { className?: string }) => (
   <svg 
@@ -22,13 +23,24 @@ const SalonChairIcon = ({ className }: { className?: string }) => (
 );
 
 export const Login: React.FC = () => {
-  const { signIn, user } = useAuth();
+  const { signIn, user, logout } = useAuth();
   const navigate = useNavigate();
   const [isSigningIn, setIsSigningIn] = React.useState(false);
+  const [showAdminPassword, setShowAdminPassword] = React.useState(false);
+  const [adminPassword, setAdminPassword] = React.useState('');
+  const [isVerifying, setIsVerifying] = React.useState(false);
 
   React.useEffect(() => {
     if (user) {
-      navigate('/');
+      if (user.email === 'no1salonchair@gmail.com') {
+        if (sessionStorage.getItem('admin_verified') === 'true') {
+          navigate('/');
+        } else {
+          setShowAdminPassword(true);
+        }
+      } else {
+        navigate('/');
+      }
     }
   }, [user, navigate]);
 
@@ -39,6 +51,23 @@ export const Login: React.FC = () => {
     } finally {
       setIsSigningIn(false);
     }
+  };
+
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    
+    // Simulate a small delay for better UX
+    setTimeout(() => {
+      if (adminPassword === 'Jumbopack@1137#') {
+        sessionStorage.setItem('admin_verified', 'true');
+        toast.success('Admin access granted');
+        navigate('/');
+      } else {
+        toast.error('Incorrect admin password');
+        setIsVerifying(false);
+      }
+    }, 500);
   };
 
   return (
@@ -73,23 +102,58 @@ export const Login: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          <button
-            type="button"
-            disabled={isSigningIn}
-            onClick={handleSignIn}
-            className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-white text-black rounded-2xl font-black text-lg hover:bg-gray-100 transition-all active:scale-95 group relative z-20 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-white/5"
-          >
-            {isSigningIn ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
-            )}
-            <span>{isSigningIn ? 'Opening Google...' : 'Sign in with Google'}</span>
-          </button>
+          {!showAdminPassword ? (
+            <button
+              type="button"
+              disabled={isSigningIn}
+              onClick={handleSignIn}
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-white text-black rounded-2xl font-black text-lg hover:bg-gray-100 transition-all active:scale-95 group relative z-20 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-white/5"
+            >
+              {isSigningIn ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
+              )}
+              <span>{isSigningIn ? 'Opening Google...' : 'Sign in with Google'}</span>
+            </button>
+          ) : (
+            <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 mb-2">
+                <ShieldCheck className="w-5 h-5 text-purple-400" />
+                <p className="text-xs text-purple-300 font-bold uppercase tracking-wider">Admin Verification Required</p>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 w-5 h-5" />
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter Admin Password"
+                  autoFocus
+                  className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isVerifying || !adminPassword}
+                className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black text-lg hover:bg-purple-500 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-purple-600/20"
+              >
+                {isVerifying ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
+                Verify & Login
+              </button>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="w-full py-2 text-white/40 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors"
+              >
+                Cancel & Sign Out
+              </button>
+            </form>
+          )}
 
           <div className="text-center">
             <p className="text-[10px] text-white/20 uppercase tracking-widest font-black">
-              Secure Authentication via Google
+              {showAdminPassword ? 'Restricted Access Area' : 'Secure Authentication via Google'}
             </p>
           </div>
         </div>

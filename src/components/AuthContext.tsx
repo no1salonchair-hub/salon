@@ -160,6 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      sessionStorage.removeItem('admin_verified');
       await signOut(auth);
     } catch (error) {
       console.error('Logout error:', error);
