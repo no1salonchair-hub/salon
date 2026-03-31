@@ -213,7 +213,6 @@ export const SalonSetup: React.FC = () => {
         // Create new salon
         console.log('Creating new salon document in Firestore...');
         const subscriptionExpiry = new Date();
-        subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 30);
 
         const salonData: Omit<Salon, 'id'> = {
           ownerId: profile.uid,

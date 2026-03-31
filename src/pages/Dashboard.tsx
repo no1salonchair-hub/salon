@@ -153,20 +153,20 @@ export const Dashboard: React.FC = () => {
 
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
               {salon.subscriptionExpiry.toDate() <= new Date() && (
-                <div className="flex-1 md:flex-none p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <p className="text-xs text-red-400 font-bold uppercase tracking-widest leading-relaxed">
-                    Your subscription has expired. Please renew to make your salon visible to customers.
-                  </p>
-                </div>
-              )}
-              {(salon.status !== 'active' || salon.subscriptionExpiry.toDate() <= new Date()) && (
-                <button
-                  onClick={() => navigate('/payment')}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg shadow-purple-600/20"
-                >
-                  <CreditCard className="w-5 h-5" />
-                  Renew Subscription
-                </button>
+                <>
+                  <div className="flex-1 md:flex-none p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <p className="text-xs text-red-400 font-bold uppercase tracking-widest leading-relaxed">
+                      Your subscription has expired. Please renew to make your salon visible to customers.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/payment')}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg shadow-purple-600/20"
+                  >
+                    <CreditCard className="w-5 h-5" />
+                    Renew Subscription
+                  </button>
+                </>
               )}
               <button
                 onClick={() => navigate('/salon-setup')}
@@ -258,7 +258,12 @@ export const Dashboard: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => updateBookingStatus(booking.id, 'accepted')}
-                          className="p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all"
+                          disabled={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date()}
+                          className={cn(
+                            "p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                            salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() && "bg-gray-600 hover:bg-gray-600"
+                          )}
+                          title={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? "Renew subscription to accept bookings" : "Accept Booking"}
                         >
                           <CheckCircle className="w-5 h-5" />
                         </button>
