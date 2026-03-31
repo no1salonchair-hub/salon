@@ -101,7 +101,7 @@ export const Home: React.FC = () => {
           salon.location.lat,
           salon.location.lng
         );
-        return matchesSearch && distance <= 50; // Increased to 50 KM radius for better UX
+        return matchesSearch && distance <= 1; // Filter within 1 KM radius
       } catch (e) {
         console.error('Error calculating distance:', e);
         return matchesSearch;
@@ -148,7 +148,7 @@ export const Home: React.FC = () => {
           <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
             <MapPin className="text-purple-500" />
             Nearby Salons
-            <span className="text-sm font-normal text-white/40 ml-2">(Within 50km)</span>
+            <span className="text-sm font-normal text-white/40 ml-2">(Within 1km)</span>
           </h2>
         </div>
 
