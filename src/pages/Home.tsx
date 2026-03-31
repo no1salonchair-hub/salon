@@ -90,7 +90,14 @@ export const Home: React.FC = () => {
   }, []);
 
   const filteredSalons = React.useMemo(() => {
+    const now = new Date();
     return salons.filter((salon) => {
+      // Filter out expired salons
+      if (salon.subscriptionExpiry) {
+        const expiryDate = salon.subscriptionExpiry.toDate();
+        if (expiryDate < now) return false;
+      }
+
       const matchesSearch = (salon.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       if (!userLocation || !salon.location) return matchesSearch;
       

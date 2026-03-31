@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { CreditCard, CheckCircle, Loader2, Scissors, ShieldCheck } from 'lucide-react';
+import { CreditCard, CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+
+import { QRCodeSVG } from 'qrcode.react';
 
 export const Payment: React.FC = () => {
   const { profile } = useAuth();
@@ -16,6 +18,7 @@ export const Payment: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [step, setStep] = useState<'info' | 'qr' | 'success'>('info');
+  const [paymentId, setPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -39,14 +42,12 @@ export const Payment: React.FC = () => {
     fetchSalon();
   }, [profile, navigate]);
 
-  const handlePaymentSubmit = async () => {
+  const generateQRCode = async () => {
     if (!salon || !profile) return;
-
     setPaymentLoading(true);
-
     try {
-      // Create a pending payment record for admin to verify manually
-      await addDoc(collection(db, 'payments'), {
+      // Create a pending payment record first to get a unique ID
+      const docRef = await addDoc(collection(db, 'payments'), {
         salonId: salon.id,
         amount: 200,
         status: 'pending',
@@ -54,14 +55,19 @@ export const Payment: React.FC = () => {
         requestedBy: profile.uid,
         salonName: salon.name,
       });
-      setStep('success');
-      toast.success('Request submitted! Our team will verify and activate your salon.');
+      setPaymentId(docRef.id);
+      setStep('qr');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'payments');
-      toast.error('Failed to submit request. Please try again.');
+      toast.error('Failed to generate payment request.');
     } finally {
       setPaymentLoading(false);
     }
+  };
+
+  const handlePaymentComplete = () => {
+    setStep('success');
+    toast.success('Request submitted! Our team will verify and activate your salon.');
   };
 
   if (loading) {
@@ -74,9 +80,18 @@ export const Payment: React.FC = () => {
 
   if (!salon) return null;
 
+  // Dynamic payment payload for the QR code
+  const qrValue = JSON.stringify({
+    type: 'SALON_PAYMENT',
+    salonId: salon.id,
+    paymentId: paymentId,
+    amount: 200,
+    timestamp: Date.now(),
+  });
+
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
-      <div>
+      <div className="relative">
         {step === 'info' && (
           <div
             key="info"
@@ -93,6 +108,13 @@ export const Payment: React.FC = () => {
             </div>
 
             <div className="space-y-4">
+              <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl flex items-center gap-3 animate-pulse">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+                <p className="text-sm font-black text-red-500 uppercase tracking-widest leading-tight">
+                  Non-Refundable Payment: Once processed, this amount cannot be refunded under any circumstances.
+                </p>
+              </div>
+
               <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-white/40">Salon Name</span>
@@ -116,23 +138,66 @@ export const Payment: React.FC = () => {
               </div>
             </div>
 
+            <button
+              onClick={generateQRCode}
+              disabled={paymentLoading}
+              className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              {paymentLoading ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  Generating QR...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-6 h-6" />
+                  Generate Payment QR
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {step === 'qr' && (
+          <div
+            key="qr"
+            className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
+          >
+            <div className="space-y-2">
+              <h2 className="text-3xl font-black text-white italic">Scan to Pay</h2>
+              <p className="text-white/40">Scan this dynamic QR code with any UPI app to pay ₹200.</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
+              <QRCodeSVG 
+                value={qrValue}
+                size={240}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            <div className="space-y-4 max-w-sm mx-auto">
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-left">
+                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Payment ID</p>
+                <p className="text-xs font-mono text-white truncate">{paymentId}</p>
+              </div>
+
               <button
-                onClick={handlePaymentSubmit}
-                disabled={paymentLoading}
+                onClick={handlePaymentComplete}
                 className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
-                {paymentLoading ? (
-                  <>
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-6 h-6" />
-                    Request Activation
-                  </>
-                )}
+                <CheckCircle className="w-6 h-6" />
+                I Have Paid
               </button>
+              
+              <button
+                onClick={() => setStep('info')}
+                className="text-white/40 text-xs font-bold hover:text-white transition-colors"
+              >
+                Cancel and Go Back
+              </button>
+            </div>
           </div>
         )}
 
@@ -145,7 +210,7 @@ export const Payment: React.FC = () => {
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white italic">Payment Submitted!</h2>
+              <h2 className="text-3xl font-black text-white italic">Request Submitted!</h2>
               <p className="text-white/40 max-w-sm mx-auto">
                 Your payment is being verified by our team. Your salon will be activated shortly.
               </p>

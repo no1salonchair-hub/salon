@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
-import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save } from 'lucide-react';
+import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield } from 'lucide-react';
 import { Service, Salon } from '../types';
 import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
@@ -205,12 +205,16 @@ export const SalonSetup: React.FC = () => {
             city: selectedCity,
             address: address,
           },
+          status: 'pending',
         };
         await updateDoc(doc(db, 'salons', salonId), updates);
         console.log('Salon document updated successfully.');
       } else {
         // Create new salon
         console.log('Creating new salon document in Firestore...');
+        const subscriptionExpiry = new Date();
+        subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 30);
+
         const salonData: Omit<Salon, 'id'> = {
           ownerId: profile.uid,
           name: salonName,
@@ -223,7 +227,7 @@ export const SalonSetup: React.FC = () => {
             address: address,
           },
           status: 'pending',
-          subscriptionExpiry: Timestamp.now(),
+          subscriptionExpiry: Timestamp.fromDate(subscriptionExpiry),
           createdAt: Timestamp.now(),
         };
         const docRef = await addDoc(collection(db, 'salons'), salonData);
@@ -260,6 +264,16 @@ export const SalonSetup: React.FC = () => {
           <div>
             <h1 className="text-3xl font-black text-white">Setup Your Salon</h1>
             <p className="text-white/60">Join the marketplace and start receiving bookings.</p>
+            {profile.role === 'salon_owner' && (
+              <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center gap-3">
+                <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center text-yellow-500">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest leading-relaxed">
+                  Note: Any changes to your salon details will require re-authorization by the admin before appearing in search results.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

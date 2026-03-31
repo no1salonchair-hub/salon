@@ -4,7 +4,7 @@ import { doc, getDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { Salon, Service, Booking } from '../types';
-import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2 } from 'lucide-react';
+import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { format, addHours, startOfHour } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -79,8 +79,10 @@ export const SalonDetails: React.FC = () => {
     fetchSalon();
   }, [salonId, navigate]);
 
+  const isExpired = salon?.subscriptionExpiry ? salon.subscriptionExpiry.toDate() < new Date() : false;
+
   const handleBooking = async () => {
-    if (!profile || !salon || selectedServices.length === 0 || !selectedTime) return;
+    if (!profile || !salon || selectedServices.length === 0 || !selectedTime || isExpired) return;
 
     setBookingLoading(true);
     try {
@@ -145,8 +147,11 @@ export const SalonDetails: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-8 left-8 right-8">
               <div className="flex items-center gap-2 mb-2">
-                <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-xs font-black uppercase tracking-widest">
-                  {salon.status}
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest",
+                  isExpired ? "bg-red-600 text-white" : "bg-purple-600 text-white"
+                )}>
+                  {isExpired ? 'Expired' : salon.status}
                 </span>
                 <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-white">
                   <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
@@ -154,6 +159,13 @@ export const SalonDetails: React.FC = () => {
                 </div>
               </div>
               <h1 className="text-4xl font-black mb-2 text-white">{salon.name}</h1>
+              {isExpired && (
+                <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-2xl mb-4">
+                  <p className="text-xs font-black text-red-400 uppercase tracking-widest leading-relaxed">
+                    This salon's subscription has expired and is currently not accepting new bookings.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-gray-200">
                 <MapPin className="w-5 h-5 text-purple-400" />
                 <span>Premium Location</span>
@@ -285,12 +297,12 @@ export const SalonDetails: React.FC = () => {
               </div>
 
               <button
-                disabled={selectedServices.length === 0 || !selectedTime || bookingLoading}
+                disabled={selectedServices.length === 0 || !selectedTime || bookingLoading || isExpired}
                 onClick={handleBooking}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {bookingLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle className="w-6 h-6" />}
-                {bookingLoading ? 'Processing...' : 'Confirm Booking'}
+                {bookingLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : (isExpired ? <XCircle className="w-6 h-6" /> : <CheckCircle className="w-6 h-6" />)}
+                {bookingLoading ? 'Processing...' : (isExpired ? 'Salon Expired' : 'Confirm Booking')}
               </button>
               <p className="text-[10px] text-center text-white/40 uppercase tracking-widest font-bold">
                 Secure Payment at Salon

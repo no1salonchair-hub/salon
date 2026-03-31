@@ -135,20 +135,31 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-2 mt-1">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    salon.status === 'active' ? "bg-green-500/20 text-green-400" : 
+                    salon.status === 'active' && salon.subscriptionExpiry.toDate() > new Date() ? "bg-green-500/20 text-green-400" : 
+                    salon.subscriptionExpiry.toDate() <= new Date() ? "bg-red-500/20 text-red-400" :
                     salon.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
                   )}>
-                    {salon.status}
+                    {salon.subscriptionExpiry.toDate() <= new Date() ? 'expired' : salon.status}
                   </span>
-                  <span className="text-xs text-white/40">
+                  <span className={cn(
+                    "text-xs",
+                    salon.subscriptionExpiry.toDate() <= new Date() ? "text-red-400 font-bold" : "text-white/40"
+                  )}>
                     Expires: {format(salon.subscriptionExpiry.toDate(), 'MMM dd, yyyy')}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-3 w-full md:w-auto">
-              {salon.status !== 'active' && (
+            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+              {salon.subscriptionExpiry.toDate() <= new Date() && (
+                <div className="flex-1 md:flex-none p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <p className="text-xs text-red-400 font-bold uppercase tracking-widest leading-relaxed">
+                    Your subscription has expired. Please renew to make your salon visible to customers.
+                  </p>
+                </div>
+              )}
+              {(salon.status !== 'active' || salon.subscriptionExpiry.toDate() <= new Date()) && (
                 <button
                   onClick={() => navigate('/payment')}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg shadow-purple-600/20"
