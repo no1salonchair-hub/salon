@@ -31,6 +31,7 @@ export const Home: React.FC = () => {
   const [error, setError] = useState<Error | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [distanceRange, setDistanceRange] = useState(5); // Default to 5km
   const navigate = useNavigate();
 
   if (error) {
@@ -108,13 +109,13 @@ export const Home: React.FC = () => {
           salon.location.lat,
           salon.location.lng
         );
-        return matchesSearch && distance <= 1; // Filter within 1 KM radius
+        return matchesSearch && distance <= distanceRange; // Use dynamic distance range
       } catch (e) {
         console.error('Error calculating distance:', e);
         return matchesSearch;
       }
     });
-  }, [salons, searchQuery, userLocation]);
+  }, [salons, searchQuery, userLocation, distanceRange]);
 
   console.log('Home: Rendering', { loading, salonsCount: salons.length, filteredCount: filteredSalons.length, hasLocation: !!userLocation });
 
@@ -151,12 +152,33 @@ export const Home: React.FC = () => {
 
       {/* Salon Grid */}
       <section>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
           <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
             <MapPin className="text-purple-500" />
             Nearby Salons
-            <span className="text-sm font-normal text-white/40 ml-2">(Within 1km)</span>
+            <span className="text-sm font-normal text-white/40 ml-2">(Within {distanceRange}km)</span>
           </h2>
+
+          <div className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[280px]">
+            <div className="flex-1 space-y-2">
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-white/40">
+                <span>Range</span>
+                <span className="text-purple-400">{distanceRange} KM</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="50"
+                step="1"
+                value={distanceRange}
+                onChange={(e) => setDistanceRange(parseInt(e.target.value))}
+                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+            </div>
+            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400">
+              <MapPin className="w-5 h-5" />
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -240,8 +262,8 @@ export const Home: React.FC = () => {
         ) : (
           <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
             <Scissors className="w-16 h-16 text-white/20 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white/40">No salons found nearby</h3>
-            <p className="text-white/20">Try searching for a different name or check back later.</p>
+            <h3 className="text-xl font-bold text-white/40">No salons found within {distanceRange}km</h3>
+            <p className="text-white/20">Try increasing the distance range or searching for a different name.</p>
           </div>
         )}
       </section>
