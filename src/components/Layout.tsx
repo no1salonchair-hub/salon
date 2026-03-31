@@ -42,15 +42,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white pb-20 md:pb-0 md:pt-16">
+    <div className="min-h-screen bg-[#050505] text-white pb-20 md:pb-0 md:pt-16">
       {/* Desktop Navbar */}
-      <nav className="fixed top-0 left-0 right-0 h-16 bg-black/50 backdrop-blur-xl border-b border-white/10 hidden md:flex items-center justify-between px-8 z-50">
+      <nav className="fixed top-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-xl border-b border-white/10 hidden md:flex items-center justify-between px-8 z-50">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-600/20">
             <Scissors className="w-6 h-6 text-white" />
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xl font-black tracking-tighter uppercase italic">
+            <span className="text-xl font-black tracking-tighter uppercase italic text-white">
               Salon Chair
             </span>
             <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-600/20">
@@ -67,7 +67,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold text-sm uppercase tracking-widest",
-                  isActive ? "bg-white/10 text-purple-400" : "text-gray-400 hover:text-white hover:bg-white/5"
+                  isActive ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white hover:bg-white/5"
                 )
               }
             >
@@ -80,12 +80,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             {profile?.photoURL ? (
               <img src={profile.photoURL} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              <User className="w-5 h-5 text-gray-400" />
+              <User className="w-5 h-5 text-white/40" />
             )}
           </NavLink>
           <button
             onClick={handleLogout}
-            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-xl transition-all"
+            className="p-2 text-white/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
             title="Logout"
           >
             <LogOut className="w-5 h-5" />
@@ -102,7 +102,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             className={({ isActive }) =>
               cn(
                 "flex flex-col items-center gap-1 transition-all",
-                isActive ? "text-purple-400" : "text-gray-500"
+                isActive ? "text-purple-500" : "text-white/40"
               )
             }
           >
@@ -121,20 +121,20 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {children}
-        <footer className="mt-20 py-10 border-t border-white/5 text-center">
-          <p className="text-gray-600 text-xs uppercase tracking-widest font-bold mb-4">
+        <footer className="mt-20 py-10 border-t border-white/10 text-center">
+          <p className="text-white/20 text-xs uppercase tracking-widest font-bold mb-4">
             &copy; 2026 Salon Chair
           </p>
           <div className="flex items-center justify-center gap-6">
-            <NavLink to="/privacy" className="text-gray-500 hover:text-purple-400 text-[10px] uppercase tracking-widest transition-all">
+            <NavLink to="/privacy" className="text-white/40 hover:text-purple-600 text-[10px] uppercase tracking-widest transition-all">
               Privacy Policy
             </NavLink>
-            <span className="text-gray-800">|</span>
-            <NavLink to="/contact" className="text-gray-500 hover:text-purple-400 text-[10px] uppercase tracking-widest transition-all">
+            <span className="text-white/10">|</span>
+            <NavLink to="/contact" className="text-white/40 hover:text-purple-600 text-[10px] uppercase tracking-widest transition-all">
               Contact Us
             </NavLink>
-            <span className="text-gray-800">|</span>
-            <span className="text-gray-500 text-[10px] uppercase tracking-widest">
+            <span className="text-white/10">|</span>
+            <span className="text-white/40 text-[10px] uppercase tracking-widest">
               Terms of Service
             </span>
           </div>

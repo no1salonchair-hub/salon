@@ -4,7 +4,6 @@ import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Service, Salon } from '../types';
 import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
@@ -55,13 +54,16 @@ export const SalonSetup: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log('SalonSetup: useEffect triggered', { hasProfile: !!profile, role: profile?.role });
     const checkSalon = async () => {
       if (!profile) return;
       
       try {
+        console.log('SalonSetup: Checking for existing salon');
         const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
+          console.log('SalonSetup: Existing salon found');
           const salonData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Salon;
           setSalonName(salonData.name);
           setServices(salonData.services);
@@ -70,9 +72,9 @@ export const SalonSetup: React.FC = () => {
           setSelectedState(salonData.location.state || '');
           setSelectedCity(salonData.location.city || '');
           setAddress(salonData.location.address || '');
-          // We don't set the 'image' file state here because we already have the imageUrl
         }
       } catch (error) {
+        console.error('SalonSetup: Error checking salon', error);
         handleFirestoreError(error, OperationType.GET, 'salons');
       }
     };
@@ -82,14 +84,16 @@ export const SalonSetup: React.FC = () => {
     }
 
     if (navigator.geolocation && !location) {
+      console.log('SalonSetup: Geolocation is supported and location is null');
       setIsDetectingLocation(true);
       const geoTimeout = setTimeout(() => {
         setIsDetectingLocation(false);
-        console.warn('Geolocation request timed out');
+        console.warn('SalonSetup: Geolocation request timed out');
       }, 10000);
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
+          console.log('SalonSetup: Geolocation success', position.coords);
           clearTimeout(geoTimeout);
           const { latitude, longitude } = position.coords;
           const geoData = await reverseGeocode(latitude, longitude);
@@ -108,9 +112,9 @@ export const SalonSetup: React.FC = () => {
           setIsDetectingLocation(false);
         },
         (error) => {
+          console.error('SalonSetup: Geolocation error', error);
           clearTimeout(geoTimeout);
           setIsDetectingLocation(false);
-          console.error('Error getting location:', error);
         },
         { timeout: 10000, enableHighAccuracy: false }
       );
@@ -246,38 +250,36 @@ export const SalonSetup: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl"
+      <div
+        className="bg-white/5 border border-white/10 rounded-3xl p-8 shadow-xl"
       >
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center text-white">
             <Scissors className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-black">Setup Your Salon</h1>
-            <p className="text-gray-400">Join the marketplace and start receiving bookings.</p>
+            <h1 className="text-3xl font-black text-white">Setup Your Salon</h1>
+            <p className="text-white/60">Join the marketplace and start receiving bookings.</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Info */}
           <div className="space-y-4">
-            <label className="block text-sm font-bold uppercase tracking-widest text-gray-500">Salon Name</label>
+            <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Salon Name</label>
             <input
               required
               type="text"
               value={salonName}
               onChange={(e) => setSalonName(e.target.value)}
               placeholder="Enter your salon name"
-              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20"
             />
           </div>
 
           {/* Image Upload */}
           <div className="space-y-4">
-            <label className="block text-sm font-bold uppercase tracking-widest text-gray-500">Front Image</label>
+            <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Front Image</label>
             <div
               onClick={() => document.getElementById('image-upload')?.click()}
               className={cn(
@@ -289,14 +291,14 @@ export const SalonSetup: React.FC = () => {
                 <>
                   <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <Plus className="w-8 h-8" />
+                    <Plus className="w-8 h-8 text-white" />
                   </div>
                 </>
               ) : (
                 <>
-                  <ImageIcon className="w-10 h-10 text-gray-600 mb-2" />
-                  <span className="text-gray-500">Click to upload salon image</span>
-                  <span className="text-xs text-gray-600 mt-1">JPG, max 100KB (auto-compressed)</span>
+                  <ImageIcon className="w-10 h-10 text-white/20 mb-2" />
+                  <span className="text-white/40">Click to upload salon image</span>
+                  <span className="text-xs text-white/20 mt-1">JPG, max 100KB (auto-compressed)</span>
                 </>
               )}
             </div>
@@ -305,42 +307,38 @@ export const SalonSetup: React.FC = () => {
 
           {/* Services */}
           <div className="space-y-4">
-            <label className="block text-sm font-bold uppercase tracking-widest text-gray-500">Services & Pricing</label>
+            <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Services & Pricing</label>
             <div className="flex gap-4">
               <input
                 type="text"
                 value={newServiceName}
                 onChange={(e) => setNewServiceName(e.target.value)}
                 placeholder="Service name (e.g. Haircut)"
-                className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder:text-white/20"
               />
               <input
                 type="number"
                 value={newServicePrice}
                 onChange={(e) => setNewServicePrice(e.target.value)}
                 placeholder="Price (₹)"
-                className="w-32 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-32 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder:text-white/20"
               />
               <button
                 type="button"
                 onClick={addService}
-                className="p-4 bg-purple-600 text-white rounded-2xl hover:bg-purple-500 transition-all"
+                className="p-4 bg-purple-600 text-white rounded-2xl hover:bg-purple-500 transition-all shadow-lg shadow-purple-600/20"
               >
                 <Plus className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="space-y-2">
-              <AnimatePresence>
+              <div className="space-y-2">
                 {services.map((service, idx) => (
-                  <motion.div
+                  <div
                     key={idx}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5"
+                    className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10"
                   >
-                    <span className="font-bold">{service.name}</span>
+                    <span className="font-bold text-white">{service.name}</span>
                     <div className="flex items-center gap-4">
                       <span className="text-purple-400 font-black">₹{service.price}</span>
                       <button
@@ -351,19 +349,18 @@ export const SalonSetup: React.FC = () => {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
-              </AnimatePresence>
-            </div>
+              </div>
           </div>
 
           {/* Location Details */}
           <div className="space-y-6">
-            <label className="block text-sm font-bold uppercase tracking-widest text-gray-500">Location Details</label>
+            <label className="block text-sm font-bold uppercase tracking-widest text-gray-400">Location Details</label>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">State</label>
+                <label className="text-xs font-bold text-white/40 uppercase tracking-wider">State</label>
                 <select
                   required
                   value={selectedState}
@@ -371,42 +368,42 @@ export const SalonSetup: React.FC = () => {
                     setSelectedState(e.target.value);
                     setSelectedCity(''); // Reset city when state changes
                   }}
-                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none"
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none text-white"
                 >
-                  <option value="" disabled className="bg-gray-900">Select State</option>
+                  <option value="" disabled className="bg-black">Select State</option>
                   {INDIAN_STATES.map(state => (
-                    <option key={state} value={state} className="bg-gray-900">{state}</option>
+                    <option key={state} value={state} className="bg-black">{state}</option>
                   ))}
                 </select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">City / District</label>
+                <label className="text-xs font-bold text-white/40 uppercase tracking-wider">City / District</label>
                 <select
                   required
                   value={selectedCity}
                   onChange={(e) => setSelectedCity(e.target.value)}
-                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none disabled:opacity-50"
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all appearance-none disabled:opacity-50 text-white"
                   disabled={!selectedState}
                 >
-                  <option value="" disabled className="bg-gray-900">Select City</option>
+                  <option value="" disabled className="bg-black">Select City</option>
                   {selectedState && STATE_CITIES[selectedState]?.map(city => (
-                    <option key={city} value={city} className="bg-gray-900">{city}</option>
+                    <option key={city} value={city} className="bg-black">{city}</option>
                   ))}
-                  <option value="Other" className="bg-gray-900">Other</option>
+                  <option value="Other" className="bg-black">Other</option>
                 </select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Address / Area Name</label>
+              <label className="text-xs font-bold text-white/40 uppercase tracking-wider">Address / Area Name</label>
               <textarea
                 required
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Enter specific address or area name"
                 rows={2}
-                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none"
+                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all resize-none text-white placeholder:text-white/20"
               />
             </div>
           </div>
@@ -425,11 +422,11 @@ export const SalonSetup: React.FC = () => {
               <h4 className={cn("font-bold", location ? "text-blue-400" : "text-yellow-400")}>
                 {isDetectingLocation ? 'Detecting Location...' : location ? 'Location Detected' : 'Location Required'}
               </h4>
-              <p className={cn("text-sm", location ? "text-blue-300/60" : "text-yellow-300/60")}>
+              <p className={cn("text-sm", location ? "text-blue-400/60" : "text-yellow-400/60")}>
                 {isDetectingLocation 
                   ? 'Fetching your coordinates and address...'
                   : location 
-                    ? `Lat: ${location.lat.toFixed(4)}, Lng: ${location.lng.toFixed(4)}` 
+                    ? `Lat: ${typeof location.lat === 'number' ? location.lat.toFixed(4) : 'N/A'}, Lng: ${typeof location.lng === 'number' ? location.lng.toFixed(4) : 'N/A'}` 
                     : 'Please allow location access in your browser to proceed.'}
               </p>
             </div>
@@ -453,7 +450,7 @@ export const SalonSetup: React.FC = () => {
             </button>
           </div>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 };

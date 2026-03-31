@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import * as React from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, getDocFromServer, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
@@ -33,85 +34,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted) {
         setLoading(prev => {
           if (prev) {
-            console.warn('AuthContext: Auth initialization timed out after 10s. Forcing loading to false.');
+            console.warn('AuthContext: Auth initialization timed out after 5s. Forcing loading to false.');
+            setError(new Error('Authentication is taking longer than expected. If you are using an incognito window or have third-party cookies blocked, please enable them for this site to work correctly.'));
             return false;
           }
           return prev;
         });
       }
-    }, 10000);
+    }, 5000);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
-      if (isMounted) {
-        clearTimeout(safetyTimeout);
-      }
       
+      if (!isMounted) return;
+      
+      clearTimeout(safetyTimeout);
+      setUser(firebaseUser);
+      
+      if (!firebaseUser) {
+        console.log('AuthContext: No user found, setting loading to false');
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
       try {
-        setUser(firebaseUser);
-        if (firebaseUser) {
-          const path = `users/${firebaseUser.uid}`;
-          
-          const fetchProfile = async (retries = 5): Promise<void> => {
-            for (let i = 0; i < retries; i++) {
-              try {
-                console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
+        const path = `users/${firebaseUser.uid}`;
+        console.log(`AuthContext: User ${firebaseUser.uid} logged in, fetching profile...`);
+        
+        const fetchProfile = async (retries = 3): Promise<void> => {
+          for (let i = 0; i < retries; i++) {
+            if (!isMounted) return;
+            
+            try {
+              console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
+              
+              const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+              const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
+              
+              if (userDoc.exists()) {
+                const existingProfile = userDoc.data() as UserProfile;
+                console.log('AuthContext: Profile found in Firestore');
                 
-                // On the first attempt, try to get from server to force a connection
-                // On subsequent attempts, use standard getDoc which can use cache
-                const userDoc = i === 0 
-                  ? await getDocFromServer(doc(db, 'users', firebaseUser.uid))
-                  : await getDoc(doc(db, 'users', firebaseUser.uid));
-                
-                const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
-                
-                if (userDoc.exists()) {
-                  const existingProfile = userDoc.data() as UserProfile;
-                  if (isAdmin && existingProfile.role !== 'admin') {
-                    const updatedProfile = { ...existingProfile, role: 'admin' as const };
-                    await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
-                    if (isMounted) setProfile(updatedProfile);
-                  } else {
-                    if (isMounted) setProfile(existingProfile);
-                  }
+                if (isAdmin && existingProfile.role !== 'admin') {
+                  console.log('AuthContext: Upgrading user to admin role');
+                  const updatedProfile = { ...existingProfile, role: 'admin' as const };
+                  await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
+                  if (isMounted) setProfile(updatedProfile);
                 } else {
-                  const newProfile: UserProfile = {
-                    uid: firebaseUser.uid,
-                    name: firebaseUser.displayName || 'Anonymous',
-                    email: firebaseUser.email || '',
-                    role: isAdmin ? 'admin' : 'user',
-                    photoURL: firebaseUser.photoURL || undefined,
-                    createdAt: Timestamp.now(),
-                  };
-                  await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-                  if (isMounted) setProfile(newProfile);
+                  if (isMounted) setProfile(existingProfile);
                 }
-                console.log('AuthContext: Profile loaded successfully');
-                return; // Success
-              } catch (err: any) {
-                console.error(`AuthContext: Profile fetch attempt ${i + 1} failed:`, err);
-                if ((err.message?.includes('offline') || err.message?.includes('network')) && i < retries - 1) {
-                  const delay = Math.min(1000 * Math.pow(2, i), 5000); // Exponential backoff
-                  console.log(`AuthContext: Connection issue, retrying in ${delay}ms...`);
-                  await new Promise(resolve => setTimeout(resolve, delay));
-                  continue;
-                }
-                if (i === retries - 1) {
-                  handleFirestoreError(err, OperationType.GET, path);
-                }
+              } else {
+                console.log('AuthContext: Profile not found, creating new profile...');
+                const newProfile: UserProfile = {
+                  uid: firebaseUser.uid,
+                  name: firebaseUser.displayName || 'Anonymous',
+                  email: firebaseUser.email || '',
+                  role: isAdmin ? 'admin' : 'user',
+                  photoURL: firebaseUser.photoURL || undefined,
+                  createdAt: Timestamp.now(),
+                };
+                await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+                if (isMounted) setProfile(newProfile);
+              }
+              console.log('AuthContext: Profile loading complete');
+              return;
+            } catch (err: any) {
+              console.error(`AuthContext: Profile fetch attempt ${i + 1} failed:`, err);
+              
+              if ((err.message?.includes('offline') || err.message?.includes('network')) && i < retries - 1) {
+                const delay = 1000 * (i + 1); 
+                console.log(`AuthContext: Connection issue, retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+              }
+              
+              if (i === retries - 1) {
+                console.error('AuthContext: Final profile fetch attempt failed');
+                handleFirestoreError(err, OperationType.GET, path);
               }
             }
-          };
+          }
+        };
 
-          await fetchProfile();
-        } else {
-          if (isMounted) setProfile(null);
-        }
+        await fetchProfile();
       } catch (err: any) {
-        console.error('AuthContext: Auth initialization error:', err);
+        console.error('AuthContext: Error in auth state change handler:', err);
         if (isMounted) setError(err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          console.log('AuthContext: Setting loading to false in finally block');
+          setLoading(false);
+        }
+      }
+    }, (err) => {
+      console.error('AuthContext: onAuthStateChanged error:', err);
+      if (isMounted) {
+        setError(err);
+        setLoading(false);
       }
     });
 

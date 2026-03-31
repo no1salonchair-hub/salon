@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { User, Mail, Shield, Scissors, Save, Loader2, CheckCircle } from 'lucide-react';
-import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -45,57 +44,55 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 space-y-8 shadow-2xl"
+      <div
+        className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-xl"
       >
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-600/20">
             <User className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-black">Your Profile</h1>
-            <p className="text-gray-400">Manage your account settings and role.</p>
+            <h1 className="text-3xl font-black text-white">Your Profile</h1>
+            <p className="text-white/40 font-bold uppercase tracking-widest text-xs">Manage your account settings and role.</p>
           </div>
         </div>
 
         <form onSubmit={handleUpdate} className="space-y-6">
           <div className="space-y-4">
-            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">Full Name</label>
+            <label className="block text-xs font-bold uppercase tracking-widest text-white/40">Full Name</label>
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 w-5 h-5" />
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20"
               />
             </div>
           </div>
 
           <div className="space-y-4">
-            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">Email Address</label>
+            <label className="block text-xs font-bold uppercase tracking-widest text-white/40">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 w-5 h-5" />
               <input
                 disabled
                 type="email"
                 value={profile.email}
-                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl opacity-50 cursor-not-allowed"
+                className="w-full pl-12 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl opacity-50 cursor-not-allowed text-white"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-6 bg-purple-500/10 border border-purple-500/20 rounded-2xl">
+            <div className="p-6 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
               <Shield className="w-8 h-8 text-purple-400 mb-2" />
-              <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-1">Current Role</p>
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/20 mb-1">Current Role</p>
               <p className="text-xl font-black text-purple-400 capitalize">{profile.role.replace('_', ' ')}</p>
             </div>
-            <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+            <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
               <Scissors className="w-8 h-8 text-blue-400 mb-2" />
-              <p className="text-xs uppercase tracking-widest font-bold text-gray-500 mb-1">Member Since</p>
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/20 mb-1">Member Since</p>
               <p className="text-xl font-black text-blue-400">
                 {profile.createdAt.toDate().getFullYear()}
               </p>
@@ -112,8 +109,8 @@ export const Profile: React.FC = () => {
         </form>
 
         {profile.role === 'user' && (
-          <div className="pt-8 border-t border-white/5 text-center">
-            <p className="text-gray-400 mb-4">Are you a salon owner?</p>
+          <div className="pt-8 border-t border-white/10 text-center">
+            <p className="text-white/40 font-bold uppercase tracking-widest text-xs mb-4">Are you a salon owner?</p>
             <button
               disabled={isUpdatingRole}
               onClick={handleSwitchToOwner}
@@ -124,7 +121,7 @@ export const Profile: React.FC = () => {
             </button>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };

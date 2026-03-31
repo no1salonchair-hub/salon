@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Mail, MapPin, Send, MessageSquare, Clock, Globe } from 'lucide-react';
-import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
 export const Contact: React.FC = () => {
@@ -47,11 +46,11 @@ export const Contact: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white py-20 px-4">
+    <div className="min-h-screen bg-[#050505] text-white py-20 px-4">
       <div className="max-w-6xl mx-auto">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-all mb-8 group"
+          className="flex items-center gap-2 text-white/40 hover:text-white transition-all mb-8 group font-bold"
         >
           <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           Back
@@ -59,17 +58,15 @@ export const Contact: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
           {/* Left Side: Info */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+          <div
             className="space-y-12"
           >
             <div className="space-y-4">
-              <div className="w-20 h-20 bg-purple-600/20 rounded-3xl flex items-center justify-center mb-6">
-                <MessageSquare className="w-10 h-10 text-purple-500" />
+              <div className="w-20 h-20 bg-purple-600 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-purple-600/20">
+                <MessageSquare className="w-10 h-10 text-white" />
               </div>
-              <h1 className="text-5xl font-black tracking-tighter uppercase italic">Get in Touch</h1>
-              <p className="text-gray-400 text-lg max-w-md">
+              <h1 className="text-5xl font-black tracking-tighter uppercase italic text-white">Get in Touch</h1>
+              <p className="text-white/60 text-lg max-w-md">
                 Have questions about Salon Chair? We're here to help you find the perfect style or grow your salon business.
               </p>
             </div>
@@ -79,21 +76,21 @@ export const Contact: React.FC = () => {
                 <a
                   key={idx}
                   href={info.link}
-                  className="flex items-start gap-6 p-6 bg-white/5 border border-white/10 rounded-3xl hover:bg-white/[0.07] transition-all group"
+                  className="flex items-start gap-6 p-6 bg-white/5 border border-white/10 rounded-3xl hover:bg-white/10 transition-all group shadow-sm hover:shadow-md backdrop-blur-xl"
                 >
-                  <div className="w-12 h-12 bg-purple-600/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <info.icon className="w-6 h-6 text-purple-500" />
+                  <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform border border-purple-500/20">
+                    <info.icon className="w-6 h-6 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold mb-1">{info.title}</h3>
+                    <h3 className="text-lg font-bold mb-1 text-white">{info.title}</h3>
                     <p className="text-white font-medium mb-1">{info.value}</p>
-                    <p className="text-gray-500 text-sm">{info.description}</p>
+                    <p className="text-white/40 text-sm">{info.description}</p>
                   </div>
                 </a>
               ))}
             </div>
 
-            <div className="pt-8 flex items-center gap-6 text-gray-500">
+            <div className="pt-8 flex items-center gap-6 text-white/20">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 <span className="text-xs font-bold uppercase tracking-widest">24/7 Support</span>
@@ -103,41 +100,39 @@ export const Contact: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-widest">Global Reach</span>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Right Side: Form */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl"
+          <div
+            className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-xl backdrop-blur-2xl"
           >
-            <h2 className="text-2xl font-black mb-8">Send us a Message</h2>
+            <h2 className="text-2xl font-black mb-8 text-white italic">Send us a Message</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-gray-500 ml-1">Full Name</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-white/40 ml-1">Full Name</label>
                   <input
                     required
                     name="name"
                     type="text"
                     placeholder="John Doe"
-                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-gray-600"
+                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-gray-500 ml-1">Email Address</label>
+                  <label className="text-xs font-black uppercase tracking-widest text-white/40 ml-1">Email Address</label>
                   <input
                     required
                     name="email"
                     type="email"
                     placeholder="john@example.com"
-                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-gray-600"
+                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-500 ml-1">Subject</label>
+                <label className="text-xs font-black uppercase tracking-widest text-white/40 ml-1">Subject</label>
                 <select 
                   name="subject"
                   className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white appearance-none cursor-pointer"
@@ -151,13 +146,13 @@ export const Contact: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-500 ml-1">Message</label>
+                <label className="text-xs font-black uppercase tracking-widest text-white/40 ml-1">Message</label>
                 <textarea
                   required
                   name="message"
                   rows={5}
                   placeholder="How can we help you?"
-                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-gray-600 resize-none"
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/20 resize-none"
                 ></textarea>
               </div>
 
@@ -176,7 +171,7 @@ export const Contact: React.FC = () => {
                 )}
               </button>
             </form>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

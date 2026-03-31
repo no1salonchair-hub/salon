@@ -5,7 +5,6 @@ import { useAuth } from '../components/AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Booking, Salon, Payment } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight } from 'lucide-react';
@@ -16,7 +15,12 @@ export const Dashboard: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+
+  if (error) {
+    throw error;
+  }
 
   useEffect(() => {
     if (!profile) return;
@@ -41,14 +45,18 @@ export const Dashboard: React.FC = () => {
           unsubscribeBookings = onSnapshot(qBookings, (snapshot) => {
             setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
             setLoading(false);
-          }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, 'bookings');
+          }, (err) => {
+            console.error('Dashboard: Bookings onSnapshot error', err);
+            setError(err);
+            setLoading(false);
           });
         } else {
           setLoading(false);
         }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'salons');
+      }, (err) => {
+        console.error('Dashboard: Salon onSnapshot error', err);
+        setError(err);
+        setLoading(false);
       });
     } else {
       // Fetch User's Bookings
@@ -60,8 +68,10 @@ export const Dashboard: React.FC = () => {
       unsubscribeBookings = onSnapshot(qBookings, (snapshot) => {
         setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
         setLoading(false);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'bookings');
+      }, (err) => {
+        console.error('Dashboard: User bookings onSnapshot error', err);
+        setError(err);
+        setLoading(false);
       });
     }
 
@@ -98,8 +108,8 @@ export const Dashboard: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black">Welcome, {profile?.name}</h1>
-          <p className="text-gray-400">Manage your bookings and salon status here.</p>
+          <h1 className="text-3xl font-black text-white">Welcome, {profile?.name}</h1>
+          <p className="text-white/60">Manage your bookings and salon status here.</p>
         </div>
         {profile?.role === 'user' && (
           <button
@@ -115,15 +125,13 @@ export const Dashboard: React.FC = () => {
       {/* Salon Status (Owner Only) */}
       {profile?.role === 'salon_owner' && (
         salon ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"
+          <div
+            className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl"
           >
             <div className="flex items-center gap-4">
-              <img src={salon.imageUrl} alt={salon.name} className="w-20 h-20 rounded-2xl object-cover border border-white/10" referrerPolicy="no-referrer" />
+              <img src={salon.imageUrl} alt={salon.name} className="w-20 h-20 rounded-2xl object-cover border border-white/10" referrerPolicy="no-referrer" loading="lazy" />
               <div>
-                <h2 className="text-xl font-bold">{salon.name}</h2>
+                <h2 className="text-xl font-bold text-white">{salon.name}</h2>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
@@ -132,7 +140,7 @@ export const Dashboard: React.FC = () => {
                   )}>
                     {salon.status}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-white/40">
                     Expires: {format(salon.subscriptionExpiry.toDate(), 'MMM dd, yyyy')}
                   </span>
                 </div>
@@ -143,7 +151,7 @@ export const Dashboard: React.FC = () => {
               {salon.status !== 'active' && (
                 <button
                   onClick={() => navigate('/payment')}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity"
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg shadow-purple-600/20"
                 >
                   <CreditCard className="w-5 h-5" />
                   Renew Subscription
@@ -151,23 +159,21 @@ export const Dashboard: React.FC = () => {
               )}
               <button
                 onClick={() => navigate('/salon-setup')}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20 transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-all border border-white/10"
               >
                 Edit Salon
               </button>
             </div>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-purple-600/10 border border-purple-500/20 rounded-3xl p-8 text-center space-y-4"
+          <div
+            className="bg-white/5 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-xl"
           >
             <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-purple-600/20">
               <Scissors className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-black">List Your Salon</h2>
-            <p className="text-gray-400 max-w-md mx-auto">
+            <h2 className="text-2xl font-black text-white">List Your Salon</h2>
+            <p className="text-white/60 max-w-md mx-auto">
               You haven't listed your salon shop yet. Start listing your services and reach more customers today!
             </p>
             <button
@@ -176,7 +182,7 @@ export const Dashboard: React.FC = () => {
             >
               Get Started Now
             </button>
-          </motion.div>
+          </div>
         )
       )}
 
@@ -193,7 +199,7 @@ export const Dashboard: React.FC = () => {
                 onClick={() => setActiveTab('upcoming')}
                 className={cn(
                   "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                  activeTab === 'upcoming' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-500 hover:text-gray-300"
+                  activeTab === 'upcoming' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
                 )}
               >
                 Upcoming
@@ -202,7 +208,7 @@ export const Dashboard: React.FC = () => {
                 onClick={() => setActiveTab('history')}
                 className={cn(
                   "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                  activeTab === 'history' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-gray-500 hover:text-gray-300"
+                  activeTab === 'history' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
                 )}
               >
                 History
@@ -221,12 +227,9 @@ export const Dashboard: React.FC = () => {
               </h3>
               <div className="space-y-3">
                 {bookings.filter(b => b.status === 'pending').map(booking => (
-                  <motion.div
+                  <div
                     key={booking.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4"
+                    className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl"
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -237,7 +240,7 @@ export const Dashboard: React.FC = () => {
                             </span>
                           ))}
                         </div>
-                        <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
+                        <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
                           {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
                         </p>
                       </div>
@@ -256,10 +259,10 @@ export const Dashboard: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
                 {bookings.filter(b => b.status === 'pending').length === 0 && (
-                  <p className="text-gray-600 text-sm italic">No pending requests.</p>
+                  <p className="text-white/20 text-sm italic">No pending requests.</p>
                 )}
               </div>
             </div>
@@ -272,12 +275,9 @@ export const Dashboard: React.FC = () => {
               </h3>
               <div className="space-y-3">
                 {bookings.filter(b => b.status === 'accepted').map(booking => (
-                  <motion.div
+                  <div
                     key={booking.id}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between"
+                    className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-xl"
                   >
                     <div>
                       <div className="flex flex-wrap gap-1 mb-1">
@@ -287,7 +287,7 @@ export const Dashboard: React.FC = () => {
                           </span>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
+                      <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
                         {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
                       </p>
                     </div>
@@ -305,28 +305,23 @@ export const Dashboard: React.FC = () => {
                         <CheckCircle className="w-5 h-5" />
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
                 {bookings.filter(b => b.status === 'accepted').length === 0 && (
-                  <p className="text-gray-600 text-sm italic">No active bookings.</p>
+                  <p className="text-white/20 text-sm italic">No active bookings.</p>
                 )}
               </div>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            <AnimatePresence mode="popLayout">
               {filteredBookings.map((booking) => (
-                <motion.div
+                <div
                   key={booking.id}
-                  layout
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:bg-white/[0.07] transition-all"
+                  className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:bg-white/10 transition-all shadow-xl"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-purple-600/20 rounded-xl flex items-center justify-center text-purple-400">
+                    <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400">
                       <Scissors className="w-6 h-6" />
                     </div>
                     <div>
@@ -337,7 +332,7 @@ export const Dashboard: React.FC = () => {
                           </span>
                         ))}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}</span>
@@ -364,14 +359,13 @@ export const Dashboard: React.FC = () => {
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                </motion.div>
+                </div>
               ))}
-            </AnimatePresence>
             {filteredBookings.length === 0 && (
               <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-400">No bookings in this category</h3>
-                <p className="text-gray-500">Your {activeTab} bookings will appear here.</p>
+                <Calendar className="w-16 h-16 text-white/10 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white/40">No bookings in this category</h3>
+                <p className="text-white/20">Your {activeTab} bookings will appear here.</p>
               </div>
             )}
           </div>

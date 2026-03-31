@@ -1,10 +1,49 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// Global error handling
+window.onerror = (message, source, lineno, colno, error) => {
+  console.error('Global Error:', { message, source, lineno, colno, error });
+  renderFallbackError(`Global Error: ${message}`);
+};
+
+window.onunhandledrejection = (event) => {
+  console.error('Unhandled Promise Rejection:', event.reason);
+  renderFallbackError(`Unhandled Promise Rejection: ${event.reason?.message || event.reason}`);
+};
+
+function renderFallbackError(message: string) {
+  const rootElement = document.getElementById('root');
+  if (rootElement && rootElement.innerHTML === '') {
+    rootElement.innerHTML = `
+      <div style="background: #ffffff; color: #1a1a1a; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; text-align: center;">
+        <h1 style="color: #ef4444;">Application Error</h1>
+        <p style="color: #4b5563; margin-bottom: 20px;">${message}</p>
+        <button onclick="window.location.reload()" style="background: #9333ea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Reload App</button>
+      </div>
+    `;
+  }
+}
+
+try {
+  console.log('Main.tsx: Starting initialization...');
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    throw new Error('Failed to find root element with id "root"');
+  }
+
+  const root = createRoot(rootElement);
+  
+  console.log('Main.tsx: Rendering App...');
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+  console.log('Main.tsx: App rendered successfully');
+} catch (error: any) {
+  console.error('Main.tsx: Critical initialization error:', error);
+  renderFallbackError(error.message || 'Critical initialization error');
+}
