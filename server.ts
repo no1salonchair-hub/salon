@@ -66,11 +66,24 @@ async function startServer() {
       const { amount, name, description, salonId } = req.body;
       console.log("Creating QR for:", { amount, name, description, salonId });
       
-      if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-        throw new Error("Razorpay keys are missing in environment variables");
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+      if (!keyId || !keySecret) {
+        console.error("Missing Razorpay keys in environment variables");
+        return res.status(500).json({ 
+          error: "Razorpay keys are missing", 
+          details: "Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to the Secrets panel." 
+        });
       }
 
-      const qrCode = await razorpay.qrCode.create({
+      // Re-initialize to ensure latest keys are used
+      const rzp = new Razorpay({
+        key_id: keyId,
+        key_secret: keySecret,
+      });
+
+      const qrCode = await rzp.qrCode.create({
         type: "upi_qr",
         name: name || "Salon Chair",
         usage: "single_payment",
@@ -88,7 +101,8 @@ async function startServer() {
       res.status(500).json({ 
         error: "Failed to create QR code", 
         details: error.message || "Unknown error",
-        code: error.code
+        code: error.code,
+        metadata: error.metadata
       });
     }
   });
