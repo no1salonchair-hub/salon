@@ -64,7 +64,7 @@ async function startServer() {
   app.post("/api/payment/qr", async (req, res) => {
     try {
       const { amount, name, description, salonId } = req.body;
-      console.log("Creating QR for:", { amount, name, description, salonId });
+      console.log("QR Request received:", { amount, name, description, salonId });
       
       const keyId = process.env.RAZORPAY_KEY_ID;
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -77,12 +77,28 @@ async function startServer() {
         });
       }
 
-      // Re-initialize to ensure latest keys are used
-      const rzp = new Razorpay({
-        key_id: keyId,
-        key_secret: keySecret,
-      });
+      console.log("Initializing Razorpay with Key ID:", keyId.substring(0, 8) + "...");
+      
+      let rzp;
+      try {
+        rzp = new Razorpay({
+          key_id: keyId,
+          key_secret: keySecret,
+        });
+      } catch (initError: any) {
+        console.error("Razorpay Init Error:", initError);
+        return res.status(500).json({ error: "Razorpay Initialization Failed", details: initError.message });
+      }
 
+      if (!rzp.qrCode) {
+        console.error("razorpay.qrCode property is missing! SDK version:", (rzp as any).VERSION || "unknown");
+        return res.status(500).json({ 
+          error: "Razorpay SDK Error", 
+          details: "The QR Code feature is not available in this version of the Razorpay SDK." 
+        });
+      }
+
+      console.log("Calling rzp.qrCode.create...");
       const qrCode = await rzp.qrCode.create({
         type: "upi_qr",
         name: name || "Salon Chair",
@@ -91,18 +107,21 @@ async function startServer() {
         payment_amount: Math.round(amount * 100),
         description: description || "Salon Subscription",
         notes: {
-          salonId: salonId,
+          salonId: salonId || "unknown",
         },
       });
+      
       console.log("QR Code created successfully:", qrCode.id);
       res.json(qrCode);
     } catch (error: any) {
-      console.error("Razorpay QR Error Details:", error);
+      console.error("Razorpay QR Runtime Error:", error);
+      // Razorpay errors often have a 'description' field in the response
+      const errorMessage = error.error?.description || error.message || "Unknown Razorpay error";
       res.status(500).json({ 
         error: "Failed to create QR code", 
-        details: error.message || "Unknown error",
+        details: errorMessage,
         code: error.code,
-        metadata: error.metadata
+        statusCode: error.statusCode
       });
     }
   });
