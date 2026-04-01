@@ -64,21 +64,32 @@ async function startServer() {
   app.post("/api/payment/qr", async (req, res) => {
     try {
       const { amount, name, description, salonId } = req.body;
+      console.log("Creating QR for:", { amount, name, description, salonId });
+      
+      if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+        throw new Error("Razorpay keys are missing in environment variables");
+      }
+
       const qrCode = await razorpay.qrCode.create({
         type: "upi_qr",
         name: name || "Salon Chair",
         usage: "single_payment",
         fixed_amount: true,
-        payment_amount: amount * 100,
+        payment_amount: Math.round(amount * 100),
         description: description || "Salon Subscription",
         notes: {
           salonId: salonId,
         },
       });
+      console.log("QR Code created successfully:", qrCode.id);
       res.json(qrCode);
-    } catch (error) {
-      console.error("Razorpay QR Error:", error);
-      res.status(500).json({ error: "Failed to create QR code" });
+    } catch (error: any) {
+      console.error("Razorpay QR Error Details:", error);
+      res.status(500).json({ 
+        error: "Failed to create QR code", 
+        details: error.message || "Unknown error",
+        code: error.code
+      });
     }
   });
 

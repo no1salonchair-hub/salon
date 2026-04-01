@@ -95,15 +95,18 @@ export const Payment: React.FC = () => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to create QR code');
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.details || data.error || 'Failed to create QR code');
+      }
+      
       setQrCodeData(data);
       setStep('qr');
       setPolling(true);
       toast.info('QR Code generated! Please scan and pay.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Razorpay QR Error:', error);
-      toast.error('Failed to generate payment QR.');
+      toast.error(error.message || 'Failed to generate payment QR.');
     } finally {
       setPaymentLoading(false);
     }
