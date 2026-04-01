@@ -2,9 +2,12 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import Razorpay from "razorpay";
+import { createRequire } from "module";
 import crypto from "crypto";
 import dotenv from "dotenv";
+
+const require = createRequire(import.meta.url);
+const Razorpay = require("razorpay");
 
 dotenv.config();
 
@@ -17,15 +20,8 @@ const getRazorpay = (keyId: string, keySecret: string) => {
   }
   
   try {
-    // Handle ESM/CJS interop for the Razorpay constructor
-    const RazorpayConstructor = (Razorpay as any).default || Razorpay;
-    
-    if (typeof RazorpayConstructor !== 'function') {
-      console.error("Razorpay is not a constructor. Type:", typeof RazorpayConstructor);
-      throw new Error("Razorpay SDK failed to load correctly as a constructor.");
-    }
-
-    return new RazorpayConstructor({
+    // With createRequire, Razorpay is usually the constructor directly
+    return new Razorpay({
       key_id: keyId,
       key_secret: keySecret,
     });
@@ -127,12 +123,12 @@ async function startServer() {
         });
       }
 
-      console.log("Calling rzp.qrCode.create with minimal params...");
+      console.log("Calling rzp.qrCode.create with params...");
       const qrCode = await rzp.qrCode.create({
         type: "upi_qr",
-        name: (name || "Salon Chair").substring(0, 40), // Razorpay has length limits
+        name: (name || "Salon Chair").substring(0, 40),
         usage: "single_payment",
-        fixed_amount: 1, // Use 1 instead of true for better compatibility
+        fixed_amount: true,
         payment_amount: Math.round(amount * 100),
         description: (description || "Salon Subscription").substring(0, 40),
       });

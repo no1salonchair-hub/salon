@@ -111,7 +111,8 @@ export const Payment: React.FC = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.details || data.error || 'Failed to create QR code');
+        const errorMsg = data.details || data.error || `Server error: ${response.status}`;
+        throw new Error(errorMsg);
       }
       
       setQrCodeData(data);
@@ -120,8 +121,9 @@ export const Payment: React.FC = () => {
       toast.info('QR Code generated! Please scan and pay.');
     } catch (error: any) {
       console.error('Razorpay QR Error:', error);
-      setQrError(error.message || 'Failed to generate payment QR.');
-      toast.error(error.message || 'Failed to generate payment QR.');
+      const msg = error.message || 'Failed to generate payment QR.';
+      setQrError(msg);
+      toast.error(msg);
     } finally {
       setPaymentLoading(false);
     }
