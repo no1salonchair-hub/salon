@@ -99,7 +99,9 @@ export const Payment: React.FC = () => {
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
         console.error('Non-JSON response:', text);
-        throw new Error('Server returned an invalid response. Please check if your Razorpay keys are correct.');
+        // If it's a short text, show it. If it's a long HTML page, show a generic error.
+        const displayMessage = text.length < 200 ? text : 'Server returned an invalid response. This often happens if your Razorpay keys are incorrect or your account is not activated for UPI.';
+        throw new Error(displayMessage);
       }
 
       const data = await response.json();

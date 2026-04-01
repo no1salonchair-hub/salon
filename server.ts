@@ -11,10 +11,16 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-});
+const getRazorpay = (keyId: string, keySecret: string) => {
+  // Handle both ESM and CJS import styles
+  console.log("Razorpay module type:", typeof Razorpay);
+  console.log("Razorpay default type:", typeof (Razorpay as any).default);
+  const RazorpayConstructor = (Razorpay as any).default || Razorpay;
+  return new RazorpayConstructor({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
+};
 
 async function startServer() {
   const app = express();
@@ -26,12 +32,16 @@ async function startServer() {
   app.post("/api/payment/order", async (req, res) => {
     try {
       const { amount, currency = "INR", receipt } = req.body;
+      const keyId = process.env.RAZORPAY_KEY_ID || "";
+      const keySecret = process.env.RAZORPAY_KEY_SECRET || "";
+      const rzp = getRazorpay(keyId, keySecret);
+      
       const options = {
         amount: amount * 100, // amount in the smallest currency unit
         currency,
         receipt,
       };
-      const order = await razorpay.orders.create(options);
+      const order = await rzp.orders.create(options);
       res.json(order);
     } catch (error) {
       console.error("Razorpay Order Error:", error);
@@ -81,10 +91,7 @@ async function startServer() {
       
       let rzp;
       try {
-        rzp = new Razorpay({
-          key_id: keyId,
-          key_secret: keySecret,
-        });
+        rzp = getRazorpay(keyId, keySecret);
       } catch (initError: any) {
         console.error("Razorpay Init Error:", initError);
         return res.status(500).json({ error: "Razorpay Initialization Failed", details: initError.message });
@@ -130,7 +137,11 @@ async function startServer() {
   app.get("/api/payment/qr/:qrId", async (req, res) => {
     try {
       const { qrId } = req.params;
-      const payments = await razorpay.qrCode.fetchAllPayments(qrId);
+      const keyId = process.env.RAZORPAY_KEY_ID || "";
+      const keySecret = process.env.RAZORPAY_KEY_SECRET || "";
+      const rzp = getRazorpay(keyId, keySecret);
+      
+      const payments = await rzp.qrCode.fetchAllPayments(qrId);
       
       // If there's at least one successful payment for this QR code
       const successfulPayment = payments.items.find((p: any) => p.status === "captured");
