@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { CreditCard, CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { CreditCard, CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -42,32 +42,83 @@ export const Payment: React.FC = () => {
     fetchSalon();
   }, [profile, navigate]);
 
-  const generateQRCode = async () => {
+  const handleRazorpayPayment = async () => {
     if (!salon || !profile) return;
     setPaymentLoading(true);
+
     try {
-      // Create a pending payment record first to get a unique ID
-      const docRef = await addDoc(collection(db, 'payments'), {
-        salonId: salon.id,
-        amount: 200,
-        status: 'pending',
-        createdAt: Timestamp.now(),
-        requestedBy: profile.uid,
-        salonName: salon.name,
+      // 1. Create Order on Server
+      const orderResponse = await fetch('/api/payment/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: 200,
+          currency: 'INR',
+          receipt: `receipt_${Date.now()}`,
+        }),
       });
-      setPaymentId(docRef.id);
-      setStep('qr');
+
+      if (!orderResponse.ok) throw new Error('Failed to create order');
+      const order = await orderResponse.json();
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Salon Chair',
+        description: `Subscription for ${salon.name}`,
+        order_id: order.id,
+        handler: async (response: any) => {
+          // 3. Verify Payment on Server
+          const verifyResponse = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+
+          if (verifyResponse.ok) {
+            // 4. Save Payment to Firestore
+            await addDoc(collection(db, 'payments'), {
+              salonId: salon.id,
+              amount: 200,
+              status: 'pending', // Still pending admin activation
+              createdAt: Timestamp.now(),
+              requestedBy: profile.uid,
+              salonName: salon.name,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+            });
+            setStep('success');
+            toast.success('Payment successful! Our team will verify and activate your salon.');
+          } else {
+            toast.error('Payment verification failed. Please contact support.');
+          }
+        },
+        prefill: {
+          name: profile.name,
+          email: profile.email,
+        },
+        theme: {
+          color: '#9333ea',
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        toast.error(response.error.description);
+      });
+      rzp.open();
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'payments');
-      toast.error('Failed to generate payment request.');
+      console.error('Razorpay Error:', error);
+      toast.error('Failed to initiate payment.');
     } finally {
       setPaymentLoading(false);
     }
-  };
-
-  const handlePaymentComplete = () => {
-    setStep('success');
-    toast.success('Request submitted! Our team will verify and activate your salon.');
   };
 
   if (loading) {
@@ -139,65 +190,22 @@ export const Payment: React.FC = () => {
             </div>
 
             <button
-              onClick={generateQRCode}
+              onClick={handleRazorpayPayment}
               disabled={paymentLoading}
               className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
               {paymentLoading ? (
                 <>
                   <Loader2 className="w-6 h-6 animate-spin" />
-                  Generating QR...
+                  Initiating Payment...
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="w-6 h-6" />
-                  Generate Payment QR
+                  <Zap className="w-6 h-6 fill-white" />
+                  Pay Now with Razorpay
                 </>
               )}
             </button>
-          </div>
-        )}
-
-        {step === 'qr' && (
-          <div
-            key="qr"
-            className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
-          >
-            <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white italic">Scan to Pay</h2>
-              <p className="text-white/40">Scan this dynamic QR code with any UPI app to pay ₹200.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
-              <QRCodeSVG 
-                value={qrValue}
-                size={240}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-
-            <div className="space-y-4 max-w-sm mx-auto">
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-left">
-                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">Payment ID</p>
-                <p className="text-xs font-mono text-white truncate">{paymentId}</p>
-              </div>
-
-              <button
-                onClick={handlePaymentComplete}
-                className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-              >
-                <CheckCircle className="w-6 h-6" />
-                I Have Paid
-              </button>
-              
-              <button
-                onClick={() => setStep('info')}
-                className="text-white/40 text-xs font-bold hover:text-white transition-colors"
-              >
-                Cancel and Go Back
-              </button>
-            </div>
           </div>
         )}
 

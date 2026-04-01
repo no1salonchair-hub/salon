@@ -61,7 +61,11 @@ service cloud.firestore {
       return doc.salonId is string &&
              doc.amount is number && doc.amount == 200 &&
              doc.status in ['pending', 'success'] &&
-             doc.createdAt is timestamp;
+             doc.createdAt is timestamp &&
+             doc.requestedBy is string &&
+             doc.salonName is string &&
+             doc.razorpayOrderId is string &&
+             doc.razorpayPaymentId is string;
     }
 
     match /users/{userId} {
