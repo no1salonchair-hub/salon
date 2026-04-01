@@ -12,14 +12,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const getRazorpay = (keyId: string, keySecret: string) => {
-  // Handle both ESM and CJS import styles
-  console.log("Razorpay module type:", typeof Razorpay);
-  console.log("Razorpay default type:", typeof (Razorpay as any).default);
-  const RazorpayConstructor = (Razorpay as any).default || Razorpay;
-  return new RazorpayConstructor({
-    key_id: keyId,
-    key_secret: keySecret,
-  });
+  if (!keyId || !keySecret) {
+    throw new Error("Razorpay Key ID or Key Secret is missing.");
+  }
+  
+  try {
+    // Handle ESM/CJS interop for the Razorpay constructor
+    const RazorpayConstructor = (Razorpay as any).default || Razorpay;
+    
+    if (typeof RazorpayConstructor !== 'function') {
+      console.error("Razorpay is not a constructor. Type:", typeof RazorpayConstructor);
+      throw new Error("Razorpay SDK failed to load correctly as a constructor.");
+    }
+
+    return new RazorpayConstructor({
+      key_id: keyId,
+      key_secret: keySecret,
+    });
+  } catch (error: any) {
+    console.error("Error creating Razorpay instance:", error);
+    throw error;
+  }
 };
 
 async function startServer() {
@@ -32,20 +45,29 @@ async function startServer() {
   app.post("/api/payment/order", async (req, res) => {
     try {
       const { amount, currency = "INR", receipt } = req.body;
-      const keyId = process.env.RAZORPAY_KEY_ID || "";
-      const keySecret = process.env.RAZORPAY_KEY_SECRET || "";
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      
+      if (!keyId || !keySecret) {
+        return res.status(500).json({ 
+          error: "Razorpay keys are missing", 
+          details: "Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to the Secrets panel." 
+        });
+      }
+
       const rzp = getRazorpay(keyId, keySecret);
       
       const options = {
-        amount: amount * 100, // amount in the smallest currency unit
+        amount: Math.round(amount * 100), // amount in the smallest currency unit
         currency,
         receipt,
       };
       const order = await rzp.orders.create(options);
       res.json(order);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Razorpay Order Error:", error);
-      res.status(500).json({ error: "Failed to create order" });
+      const errorMessage = error.error?.description || error.message || "Failed to create order";
+      res.status(500).json({ error: "Failed to create order", details: errorMessage });
     }
   });
 
@@ -105,17 +127,14 @@ async function startServer() {
         });
       }
 
-      console.log("Calling rzp.qrCode.create...");
+      console.log("Calling rzp.qrCode.create with minimal params...");
       const qrCode = await rzp.qrCode.create({
         type: "upi_qr",
-        name: name || "Salon Chair",
+        name: (name || "Salon Chair").substring(0, 40), // Razorpay has length limits
         usage: "single_payment",
-        fixed_amount: true,
+        fixed_amount: 1, // Use 1 instead of true for better compatibility
         payment_amount: Math.round(amount * 100),
-        description: description || "Salon Subscription",
-        notes: {
-          salonId: salonId || "unknown",
-        },
+        description: (description || "Salon Subscription").substring(0, 40),
       });
       
       console.log("QR Code created successfully:", qrCode.id);

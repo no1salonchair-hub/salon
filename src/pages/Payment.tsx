@@ -3,13 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { CreditCard, CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap } from 'lucide-react';
+import { CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-
-import { QRCodeSVG } from 'qrcode.react';
 
 export const Payment: React.FC = () => {
   const { profile } = useAuth();
@@ -17,8 +15,8 @@ export const Payment: React.FC = () => {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [step, setStep] = useState<'info' | 'qr' | 'success'>('info');
-  const [paymentId, setPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -79,9 +77,16 @@ export const Payment: React.FC = () => {
     return () => clearInterval(interval);
   }, [polling, qrCodeData, salon, profile]);
 
+  useEffect(() => {
+    if (salon && profile && step === 'info' && !qrCodeData && !paymentLoading && !qrError) {
+      handleRazorpayQR();
+    }
+  }, [salon, profile, step, qrCodeData, paymentLoading, qrError]);
+
   const handleRazorpayQR = async () => {
     if (!salon || !profile) return;
     setPaymentLoading(true);
+    setQrError(null);
 
     try {
       const response = await fetch('/api/payment/qr', {
@@ -100,7 +105,7 @@ export const Payment: React.FC = () => {
         const text = await response.text();
         console.error('Non-JSON response:', text);
         // If it's a short text, show it. If it's a long HTML page, show a generic error.
-        const displayMessage = text.length < 200 ? text : 'Server returned an invalid response. This often happens if your Razorpay keys are incorrect or your account is not activated for UPI.';
+        const displayMessage = text.length < 500 ? text : 'Server returned an invalid response. This often happens if your Razorpay keys are incorrect or your account is not activated for UPI.';
         throw new Error(displayMessage);
       }
 
@@ -115,86 +120,8 @@ export const Payment: React.FC = () => {
       toast.info('QR Code generated! Please scan and pay.');
     } catch (error: any) {
       console.error('Razorpay QR Error:', error);
+      setQrError(error.message || 'Failed to generate payment QR.');
       toast.error(error.message || 'Failed to generate payment QR.');
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const handleRazorpayPayment = async () => {
-    if (!salon || !profile) return;
-    setPaymentLoading(true);
-
-    try {
-      // 1. Create Order on Server
-      const orderResponse = await fetch('/api/payment/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: 200,
-          currency: 'INR',
-          receipt: `receipt_${Date.now()}`,
-        }),
-      });
-
-      if (!orderResponse.ok) throw new Error('Failed to create order');
-      const order = await orderResponse.json();
-
-      // 2. Open Razorpay Checkout
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'Salon Chair',
-        description: `Subscription for ${salon.name}`,
-        order_id: order.id,
-        handler: async (response: any) => {
-          // 3. Verify Payment on Server
-          const verifyResponse = await fetch('/api/payment/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            }),
-          });
-
-          if (verifyResponse.ok) {
-            // 4. Save Payment to Firestore
-            await addDoc(collection(db, 'payments'), {
-              salonId: salon.id,
-              amount: 200,
-              status: 'pending', // Still pending admin activation
-              createdAt: Timestamp.now(),
-              requestedBy: profile.uid,
-              salonName: salon.name,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-            });
-            setStep('success');
-            toast.success('Payment successful! Our team will verify and activate your salon.');
-          } else {
-            toast.error('Payment verification failed. Please contact support.');
-          }
-        },
-        prefill: {
-          name: profile.name,
-          email: profile.email,
-        },
-        theme: {
-          color: '#9333ea',
-        },
-      };
-
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', function (response: any) {
-        toast.error(response.error.description);
-      });
-      rzp.open();
-    } catch (error) {
-      console.error('Razorpay Error:', error);
-      toast.error('Failed to initiate payment.');
     } finally {
       setPaymentLoading(false);
     }
@@ -210,15 +137,6 @@ export const Payment: React.FC = () => {
 
   if (!salon) return null;
 
-  // Dynamic payment payload for the QR code
-  const qrValue = JSON.stringify({
-    type: 'SALON_PAYMENT',
-    salonId: salon.id,
-    paymentId: paymentId,
-    amount: 200,
-    timestamp: Date.now(),
-  });
-
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
       <div className="relative">
@@ -229,7 +147,7 @@ export const Payment: React.FC = () => {
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center text-white">
-                <CreditCard className="w-6 h-6" />
+                <Zap className="w-6 h-6 fill-white" />
               </div>
               <div>
                 <h1 className="text-3xl font-black text-white italic">Salon Subscription</h1>
@@ -268,36 +186,26 @@ export const Payment: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                onClick={handleRazorpayPayment}
-                disabled={paymentLoading}
-                className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-lg hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-              >
-                {paymentLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <CreditCard className="w-6 h-6" />
-                    Pay with Card/UPI
-                  </>
-                )}
-              </button>
-              
-              <button
-                onClick={handleRazorpayQR}
-                disabled={paymentLoading}
-                className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-              >
-                {paymentLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <Zap className="w-6 h-6 fill-white" />
-                    Pay with QR Code
-                  </>
-                )}
-              </button>
+            <div className="flex justify-center">
+              {qrError ? (
+                <div className="w-full space-y-4">
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                    <p className="text-sm text-red-500 font-bold">{qrError}</p>
+                  </div>
+                  <button
+                    onClick={() => handleRazorpayQR()}
+                    className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-5 h-5 fill-white" />
+                    Retry Generating QR Code
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 justify-center w-full">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+                  <p className="text-sm text-purple-400 font-bold uppercase tracking-widest">Generating Secure QR Code...</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -307,9 +215,19 @@ export const Payment: React.FC = () => {
             key="qr"
             className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
           >
-            <div className="space-y-2">
+            <div className="space-y-4">
               <h2 className="text-3xl font-black text-white italic">Scan to Pay</h2>
-              <p className="text-white/40">Scan this dynamic QR code with any UPI app to pay ₹200.</p>
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex justify-between items-center max-w-sm mx-auto">
+                <div className="text-left">
+                  <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Salon</p>
+                  <p className="text-sm font-bold text-white">{salon.name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Amount</p>
+                  <p className="text-xl font-black text-purple-400">₹200</p>
+                </div>
+              </div>
+              <p className="text-white/40 text-sm">Scan this dynamic QR code with any UPI app.</p>
             </div>
 
             <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
@@ -341,7 +259,7 @@ export const Payment: React.FC = () => {
               <button
                 onClick={() => {
                   setPolling(false);
-                  setStep('info');
+                  navigate('/dashboard');
                 }}
                 className="text-white/40 text-xs font-bold hover:text-white transition-colors"
               >
