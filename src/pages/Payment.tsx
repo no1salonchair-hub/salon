@@ -42,6 +42,73 @@ export const Payment: React.FC = () => {
     fetchSalon();
   }, [profile, navigate]);
 
+  const [qrCodeData, setQrCodeData] = useState<any>(null);
+  const [polling, setPolling] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+    if (polling && qrCodeData?.id) {
+      interval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/payment/qr/${qrCodeData.id}`);
+          const data = await response.json();
+          if (data.status === 'paid') {
+            setPolling(false);
+            clearInterval(interval);
+            
+            // Save to Firestore
+            await addDoc(collection(db, 'payments'), {
+              salonId: salon?.id,
+              amount: 200,
+              status: 'pending', // Still pending admin activation
+              createdAt: Timestamp.now(),
+              requestedBy: profile?.uid,
+              salonName: salon?.name,
+              razorpayPaymentId: data.payment.id,
+              razorpayQrId: qrCodeData.id,
+            });
+            
+            setStep('success');
+            toast.success('Payment verified! Our team will activate your salon shortly.');
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+    return () => clearInterval(interval);
+  }, [polling, qrCodeData, salon, profile]);
+
+  const handleRazorpayQR = async () => {
+    if (!salon || !profile) return;
+    setPaymentLoading(true);
+
+    try {
+      const response = await fetch('/api/payment/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: 200,
+          name: 'Salon Chair',
+          description: `Subscription for ${salon.name}`,
+          salonId: salon.id,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to create QR code');
+      const data = await response.json();
+      setQrCodeData(data);
+      setStep('qr');
+      setPolling(true);
+      toast.info('QR Code generated! Please scan and pay.');
+    } catch (error) {
+      console.error('Razorpay QR Error:', error);
+      toast.error('Failed to generate payment QR.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   const handleRazorpayPayment = async () => {
     if (!salon || !profile) return;
     setPaymentLoading(true);
@@ -189,23 +256,86 @@ export const Payment: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={handleRazorpayPayment}
-              disabled={paymentLoading}
-              className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              {paymentLoading ? (
-                <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={handleRazorpayPayment}
+                disabled={paymentLoading}
+                className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-lg hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+              >
+                {paymentLoading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
-                  Initiating Payment...
-                </>
+                ) : (
+                  <>
+                    <CreditCard className="w-6 h-6" />
+                    Pay with Card/UPI
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={handleRazorpayQR}
+                disabled={paymentLoading}
+                className="w-full py-5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              >
+                {paymentLoading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <>
+                    <Zap className="w-6 h-6 fill-white" />
+                    Pay with QR Code
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'qr' && (
+          <div
+            key="qr"
+            className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
+          >
+            <div className="space-y-2">
+              <h2 className="text-3xl font-black text-white italic">Scan to Pay</h2>
+              <p className="text-white/40">Scan this dynamic QR code with any UPI app to pay ₹200.</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
+              {qrCodeData?.image_url ? (
+                <img 
+                  src={qrCodeData.image_url} 
+                  alt="Payment QR" 
+                  className="w-64 h-64 mx-auto"
+                  referrerPolicy="no-referrer"
+                />
               ) : (
-                <>
-                  <Zap className="w-6 h-6 fill-white" />
-                  Pay Now with Razorpay
-                </>
+                <div className="w-64 h-64 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                </div>
               )}
-            </button>
+            </div>
+
+            <div className="space-y-4 max-w-sm mx-auto">
+              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 justify-center">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                <p className="text-sm text-purple-400 font-bold">Waiting for payment confirmation...</p>
+              </div>
+
+              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-left">
+                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">QR ID</p>
+                <p className="text-xs font-mono text-white truncate">{qrCodeData?.id}</p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setPolling(false);
+                  setStep('info');
+                }}
+                className="text-white/40 text-xs font-bold hover:text-white transition-colors"
+              >
+                Cancel and Go Back
+              </button>
+            </div>
           </div>
         )}
 

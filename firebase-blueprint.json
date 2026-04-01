@@ -92,10 +92,11 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "When payment was made" },
         "requestedBy": { "type": "string", "description": "UID of the user who made the payment" },
         "salonName": { "type": "string", "description": "Name of the salon" },
-        "razorpayOrderId": { "type": "string", "description": "Razorpay Order ID" },
-        "razorpayPaymentId": { "type": "string", "description": "Razorpay Payment ID" }
+        "razorpayOrderId": { "type": "string", "description": "Razorpay Order ID (optional for QR)" },
+        "razorpayPaymentId": { "type": "string", "description": "Razorpay Payment ID" },
+        "razorpayQrId": { "type": "string", "description": "Razorpay QR ID (optional for Checkout)" }
       },
-      "required": ["id", "salonId", "amount", "status", "createdAt", "requestedBy", "salonName", "razorpayOrderId", "razorpayPaymentId"]
+      "required": ["id", "salonId", "amount", "status", "createdAt", "requestedBy", "salonName", "razorpayPaymentId"]
     }
   },
   "firestore": {

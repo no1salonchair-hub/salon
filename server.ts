@@ -60,6 +60,48 @@ async function startServer() {
     }
   });
 
+  // Razorpay QR Code Creation
+  app.post("/api/payment/qr", async (req, res) => {
+    try {
+      const { amount, name, description, salonId } = req.body;
+      const qrCode = await razorpay.qrCode.create({
+        type: "upi_qr",
+        name: name || "Salon Chair",
+        usage: "single_payment",
+        fixed_amount: true,
+        payment_amount: amount * 100,
+        description: description || "Salon Subscription",
+        notes: {
+          salonId: salonId,
+        },
+      });
+      res.json(qrCode);
+    } catch (error) {
+      console.error("Razorpay QR Error:", error);
+      res.status(500).json({ error: "Failed to create QR code" });
+    }
+  });
+
+  // Check QR Code Payment Status
+  app.get("/api/payment/qr/:qrId", async (req, res) => {
+    try {
+      const { qrId } = req.params;
+      const payments = await razorpay.qrCode.fetchAllPayments(qrId);
+      
+      // If there's at least one successful payment for this QR code
+      const successfulPayment = payments.items.find((p: any) => p.status === "captured");
+      
+      if (successfulPayment) {
+        res.json({ status: "paid", payment: successfulPayment });
+      } else {
+        res.json({ status: "pending" });
+      }
+    } catch (error) {
+      console.error("Razorpay QR Status Error:", error);
+      res.status(500).json({ error: "Failed to check QR status" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -64,8 +64,9 @@ service cloud.firestore {
              doc.createdAt is timestamp &&
              doc.requestedBy is string &&
              doc.salonName is string &&
-             doc.razorpayOrderId is string &&
-             doc.razorpayPaymentId is string;
+             doc.razorpayPaymentId is string &&
+             (!('razorpayOrderId' in doc) || doc.razorpayOrderId is string) &&
+             (!('razorpayQrId' in doc) || doc.razorpayQrId is string);
     }
 
     match /users/{userId} {
