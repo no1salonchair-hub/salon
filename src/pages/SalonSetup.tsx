@@ -75,12 +75,20 @@ export const SalonSetup: React.FC = () => {
         }
       } catch (error) {
         console.error('SalonSetup: Error checking salon', error);
-        handleFirestoreError(error, OperationType.GET, 'salons');
+        try {
+          handleFirestoreError(error, OperationType.GET, 'salons');
+        } catch (e: any) {
+          // If handleFirestoreError throws (which it does), it will be caught by the ErrorBoundary
+          // but we catch it here to avoid unhandled rejection
+          throw e;
+        }
       }
     };
 
     if (profile?.role === 'salon_owner') {
-      checkSalon();
+      checkSalon().catch(err => {
+        console.error('Unhandled checkSalon error:', err);
+      });
     }
 
     if (navigator.geolocation && !location) {

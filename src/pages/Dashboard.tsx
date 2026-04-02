@@ -86,7 +86,12 @@ export const Dashboard: React.FC = () => {
     try {
       await updateDoc(doc(db, 'bookings', bookingId), { status });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error('Error updating booking status:', error);
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      } catch (e: any) {
+        setError(e);
+      }
     }
   };
 

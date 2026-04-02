@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
@@ -14,6 +14,7 @@ export const Payment: React.FC = () => {
   const navigate = useNavigate();
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [step, setStep] = useState<'info' | 'qr' | 'success'>('info');
@@ -31,13 +32,22 @@ export const Payment: React.FC = () => {
           navigate('/salon-setup');
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.GET, 'salons');
+        console.error('Error fetching salon:', error);
+        // Don't throw here to avoid unhandled rejection, instead set error state or handle gracefully
+        try {
+          handleFirestoreError(error, OperationType.GET, 'salons');
+        } catch (e: any) {
+          setError(e);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSalon();
+    fetchSalon().catch(err => {
+      console.error('Unhandled fetchSalon error:', err);
+      setError(err);
+    });
   }, [profile, navigate]);
 
   const [qrCodeData, setQrCodeData] = useState<any>(null);
@@ -58,16 +68,27 @@ export const Payment: React.FC = () => {
             await addDoc(collection(db, 'payments'), {
               salonId: salon?.id,
               amount: 200,
-              status: 'pending', // Still pending admin activation
+              status: 'success', // Mark as success since it's verified
               createdAt: Timestamp.now(),
               requestedBy: profile?.uid,
               salonName: salon?.name,
               razorpayPaymentId: data.payment.id,
               razorpayQrId: qrCodeData.id,
             });
+
+            // Update Salon Status and Expiry
+            if (salon?.id) {
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30); // Add 30 days
+              
+              await updateDoc(doc(db, 'salons', salon.id), {
+                status: 'active',
+                subscriptionExpiry: Timestamp.fromDate(expiryDate)
+              });
+            }
             
             setStep('success');
-            toast.success('Payment verified! Our team will activate your salon shortly.');
+            toast.success('Payment verified! Your salon is now active and listed.');
           }
         } catch (error) {
           console.error('Polling error:', error);
@@ -79,7 +100,10 @@ export const Payment: React.FC = () => {
 
   useEffect(() => {
     if (salon && profile && step === 'info' && !qrCodeData && !paymentLoading && !qrError) {
-      handleRazorpayQR();
+      handleRazorpayQR().catch(err => {
+        console.error('Auto QR generation failed:', err);
+        setQrError(err.message || 'Failed to generate payment QR.');
+      });
     }
   }, [salon, profile, step, qrCodeData, paymentLoading, qrError]);
 
@@ -128,6 +152,10 @@ export const Payment: React.FC = () => {
       setPaymentLoading(false);
     }
   };
+
+  if (error) {
+    throw error;
+  }
 
   if (loading) {
     return (
@@ -280,9 +308,9 @@ export const Payment: React.FC = () => {
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white italic">Request Submitted!</h2>
+              <h2 className="text-3xl font-black text-white italic">Salon Activated!</h2>
               <p className="text-white/40 max-w-sm mx-auto">
-                Your payment is being verified by our team. Your salon will be activated shortly.
+                Your payment has been verified and your salon is now active in the marketplace for the next 30 days.
               </p>
             </div>
             <button

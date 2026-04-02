@@ -84,7 +84,8 @@ service cloud.firestore {
                     isValidSalon(request.resource.data) && request.resource.data.status == 'pending';
       allow update: if isAuthenticated() && (isOwner(resource.data.ownerId) || isAdmin()) && 
                     isValidSalon(request.resource.data) && 
-                    (isAdmin() || (request.resource.data.status == 'pending' && request.resource.data.subscriptionExpiry == resource.data.subscriptionExpiry));
+                    (isAdmin() || (request.resource.data.status in ['pending', 'active', 'hidden'] && 
+                                   (request.resource.data.subscriptionExpiry >= resource.data.subscriptionExpiry)));
       allow delete: if isAdmin();
     }
 
