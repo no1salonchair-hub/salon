@@ -29,26 +29,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('AuthContext: Initializing auth listener...');
     let isMounted = true;
     
-    // Safety timeout to prevent infinite loading
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted) {
-        setLoading(prev => {
-          if (prev) {
-            console.warn('AuthContext: Auth initialization timed out after 5s. Forcing loading to false.');
-            setError(new Error('Authentication is taking longer than expected. If you are using an incognito window or have third-party cookies blocked, please enable them for this site to work correctly.'));
-            return false;
-          }
-          return prev;
-        });
-      }
-    }, 5000);
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
       
       if (!isMounted) return;
       
-      clearTimeout(safetyTimeout);
       setUser(firebaseUser);
       
       if (!firebaseUser) {
@@ -59,71 +44,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const path = `users/${firebaseUser.uid}`;
         console.log(`AuthContext: User ${firebaseUser.uid} logged in, fetching profile...`);
         
-        const fetchProfile = async (retries = 3): Promise<void> => {
-          for (let i = 0; i < retries; i++) {
-            if (!isMounted) return;
-            
-            try {
-              console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
-              
-              // Add a per-attempt timeout
-              const userDocPromise = getDoc(doc(db, 'users', firebaseUser.uid));
-              const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Profile fetch timed out')), 10000)
-              );
-              
-              const userDoc = await Promise.race([userDocPromise, timeoutPromise]) as any;
-              const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
-              
-              if (userDoc.exists()) {
-                const existingProfile = userDoc.data() as UserProfile;
-                console.log('AuthContext: Profile found in Firestore');
-                
-                if (isAdmin && existingProfile.role !== 'admin') {
-                  console.log('AuthContext: Upgrading user to admin role');
-                  const updatedProfile = { ...existingProfile, role: 'admin' as const };
-                  await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
-                  if (isMounted) setProfile(updatedProfile);
-                } else {
-                  if (isMounted) setProfile(existingProfile);
-                }
-              } else {
-                console.log('AuthContext: Profile not found, creating new profile...');
-                const newProfile: UserProfile = {
-                  uid: firebaseUser.uid,
-                  name: firebaseUser.displayName || 'Anonymous',
-                  email: firebaseUser.email || '',
-                  role: isAdmin ? 'admin' : 'user',
-                  photoURL: firebaseUser.photoURL || undefined,
-                  createdAt: Timestamp.now(),
-                };
-                await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-                if (isMounted) setProfile(newProfile);
-              }
-              console.log('AuthContext: Profile loading complete');
-              return;
-            } catch (err: any) {
-              console.error(`AuthContext: Profile fetch attempt ${i + 1} failed:`, err);
-              
-              if ((err.message?.includes('offline') || err.message?.includes('network')) && i < retries - 1) {
-                const delay = 1000 * (i + 1); 
-                console.log(`AuthContext: Connection issue, retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
-              }
-              
-              if (i === retries - 1) {
-                console.error('AuthContext: Final profile fetch attempt failed');
-                handleFirestoreError(err, OperationType.GET, path);
-              }
-            }
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
+        
+        if (userDoc.exists()) {
+          const existingProfile = userDoc.data() as UserProfile;
+          console.log('AuthContext: Profile found in Firestore');
+          
+          if (isAdmin && existingProfile.role !== 'admin') {
+            console.log('AuthContext: Upgrading user to admin role');
+            const updatedProfile = { ...existingProfile, role: 'admin' as const };
+            await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
+            if (isMounted) setProfile(updatedProfile);
+          } else {
+            if (isMounted) setProfile(existingProfile);
           }
-        };
-
-        await fetchProfile();
+        } else {
+          console.log('AuthContext: Profile not found, creating new profile...');
+          const newProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Anonymous',
+            email: firebaseUser.email || '',
+            role: isAdmin ? 'admin' : 'user',
+            photoURL: firebaseUser.photoURL || undefined,
+            createdAt: Timestamp.now(),
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+          if (isMounted) setProfile(newProfile);
+        }
+        console.log('AuthContext: Profile loading complete');
       } catch (err: any) {
         console.error('AuthContext: Error in auth state change handler:', err);
         if (isMounted) setError(err);
@@ -144,7 +95,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
       unsubscribe();
-      clearTimeout(safetyTimeout);
     };
   }, []);
 
