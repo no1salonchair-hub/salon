@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2 } from 'lucide-react';
+import { PushNotificationManager } from '../components/PushNotificationManager';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -136,9 +137,10 @@ export const Dashboard: React.FC = () => {
       {/* Salon Status (Owner Only) */}
       {profile?.role === 'salon_owner' && (
         salon ? (
-          <div
-            className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl"
-          >
+          <>
+            <div
+              className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl"
+            >
             <div className="flex items-center gap-4">
               <img src={salon.imageUrl} alt={salon.name} className="w-20 h-20 rounded-2xl object-cover border border-white/10" referrerPolicy="no-referrer" loading="lazy" />
               <div>
@@ -183,11 +185,16 @@ export const Dashboard: React.FC = () => {
                 onClick={() => navigate('/salon-setup')}
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition-all border border-white/10"
               >
+                <Plus className="w-5 h-5" />
                 Edit Salon
               </button>
             </div>
           </div>
-        ) : (
+
+          {/* Notification Manager */}
+          <PushNotificationManager />
+        </>
+      ) : (
           <div
             className="bg-white/5 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-xl"
           >

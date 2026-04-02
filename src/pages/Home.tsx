@@ -137,15 +137,27 @@ export const Home: React.FC = () => {
           >
             Find Your Perfect Style
           </h1>
-          <div className="relative max-w-2xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search salons, services..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/40 shadow-2xl"
-            />
+          <div className="flex flex-col md:flex-row gap-4 max-w-2xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search salons, services..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/40 shadow-2xl"
+              />
+            </div>
+            <button
+              onClick={() => {
+                const event = new CustomEvent('trigger-install-prompt');
+                window.dispatchEvent(event);
+              }}
+              className="px-6 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-xl shadow-purple-600/20 md:w-auto"
+            >
+              <Scissors className="w-5 h-5" />
+              Install App
+            </button>
           </div>
         </div>
       </section>

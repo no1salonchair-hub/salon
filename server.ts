@@ -8,10 +8,20 @@ import dotenv from "dotenv";
 
 const require = createRequire(import.meta.url);
 const Razorpay = require("razorpay");
+const webpush = require("web-push");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 
 dotenv.config();
+
+// Configure web-push
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:no1salonchair@gmail.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 const firebaseConfig = require("./firebase-applet-config.json");
 
@@ -48,6 +58,71 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Push Subscription Endpoint
+  app.post("/api/notifications/subscribe", async (req, res) => {
+    try {
+      const { subscription, userId } = req.body;
+      if (!subscription || !userId) {
+        return res.status(400).json({ error: "Missing subscription or userId" });
+      }
+
+      console.log(`Saving push subscription for user ${userId}`);
+      
+      // Save subscription to Firestore
+      await db.collection("push_subscriptions").doc(userId).set({
+        subscription,
+        updatedAt: Timestamp.now()
+      });
+
+      res.json({ status: "ok" });
+    } catch (error) {
+      console.error("Push Subscription Error:", error);
+      res.status(500).json({ error: "Failed to save subscription" });
+    }
+  });
+
+  // Listen for new bookings to send notifications
+  db.collection("bookings").onSnapshot((snapshot: any) => {
+    snapshot.docChanges().forEach(async (change: any) => {
+      if (change.type === "added") {
+        const booking = change.doc.data();
+        const salonId = booking.salonId;
+        
+        console.log(`New booking detected for salon ${salonId}. Sending notification...`);
+
+        try {
+          // 1. Find the salon owner
+          const salonDoc = await db.collection("salons").doc(salonId).get();
+          if (!salonDoc.exists) return;
+          
+          const salonData = salonDoc.data();
+          const ownerId = salonData.ownerId;
+
+          // 2. Find the owner's push subscription
+          const subDoc = await db.collection("push_subscriptions").doc(ownerId).get();
+          if (!subDoc.exists) {
+            console.log(`No push subscription found for owner ${ownerId}`);
+            return;
+          }
+
+          const { subscription } = subDoc.data();
+
+          // 3. Send the notification
+          const payload = JSON.stringify({
+            title: "New Booking!",
+            body: `You have a new booking for ${booking.services.join(", ")}`,
+            url: `/booking/${change.doc.id}`
+          });
+
+          await webpush.sendNotification(subscription, payload);
+          console.log(`Push notification sent to owner ${ownerId}`);
+        } catch (error) {
+          console.error("Error sending push notification:", error);
+        }
+      }
+    });
+  });
 
   // Razorpay Order Creation
   app.post("/api/payment/order", async (req, res) => {
@@ -155,14 +230,15 @@ async function startServer() {
           })
         });
 
-        const apiData: any = await apiResponse.json();
-        if (!apiResponse.ok) {
-          console.error("Razorpay Direct API Error:", apiData);
-          return res.status(apiResponse.status).json({ 
-            error: "Razorpay API Error", 
-            details: apiData.error?.description || "Failed to create QR code via direct API" 
-          });
-        }
+      const apiData: any = await apiResponse.json();
+      if (!apiResponse.ok) {
+        console.error("Razorpay Direct API Error Response:", JSON.stringify(apiData, null, 2));
+        return res.status(apiResponse.status).json({ 
+          error: "Razorpay API Error", 
+          details: apiData.error?.description || apiData.error?.reason || "Failed to create QR code via direct API",
+          raw: apiData
+        });
+      }
         console.log("QR Code created via direct API:", apiData.id);
         return res.json(apiData);
       }
@@ -182,13 +258,18 @@ async function startServer() {
       res.json(qrCode);
     } catch (error: any) {
       console.error("Razorpay QR Runtime Error:", error);
-      // Razorpay errors often have a 'description' field in the response
-      const errorMessage = error.error?.description || error.message || "Unknown Razorpay error";
+      
+      // Extract as much detail as possible
+      const details = error.error?.description || error.description || error.message || "Unknown Razorpay error";
+      const reason = error.error?.reason || error.reason;
+      
       res.status(500).json({ 
         error: "Failed to create QR code", 
-        details: errorMessage,
+        details: details,
+        reason: reason,
         code: error.code,
-        statusCode: error.statusCode
+        statusCode: error.statusCode,
+        step: "runtime_catch"
       });
     }
   });

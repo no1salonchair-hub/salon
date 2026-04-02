@@ -19,6 +19,7 @@ import { Payment } from './pages/Payment';
 import { Profile } from './pages/Profile';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
+import { InstallPrompt } from './components/InstallPrompt';
 
 const LoadingSpinner = () => (
   <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
@@ -121,6 +122,7 @@ const App: React.FC = () => {
             </AnimatePresence>
           </Router>
           <Toaster position="top-center" expand={false} richColors />
+          <InstallPrompt />
         </AuthProvider>
       </ErrorBoundary>
     </HelmetProvider>

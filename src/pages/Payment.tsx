@@ -135,7 +135,7 @@ export const Payment: React.FC = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        const errorMsg = data.details || data.error || `Server error: ${response.status}`;
+        const errorMsg = data.details || data.reason || data.error || `Server error: ${response.status}`;
         throw new Error(errorMsg);
       }
       
