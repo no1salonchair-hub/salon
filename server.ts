@@ -62,6 +62,15 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Get VAPID Public Key
+  app.get("/api/notifications/vapid-key", (req, res) => {
+    if (process.env.VAPID_PUBLIC_KEY) {
+      res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+    } else {
+      res.status(404).json({ error: "VAPID public key not configured" });
+    }
+  });
+
   // Push Subscription Endpoint
   app.post("/api/notifications/subscribe", async (req, res) => {
     try {

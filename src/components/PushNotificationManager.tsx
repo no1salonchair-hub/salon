@@ -3,12 +3,13 @@ import { useAuth } from './AuthContext';
 import { Bell, BellOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || (typeof process !== 'undefined' ? process.env.VITE_VAPID_PUBLIC_KEY : undefined);
-
 export const PushNotificationManager: React.FC = () => {
   const { profile } = useAuth();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [vapidKey, setVapidKey] = useState<string | null>(
+    import.meta.env.VITE_VAPID_PUBLIC_KEY || (typeof process !== 'undefined' ? process.env.VITE_VAPID_PUBLIC_KEY : null)
+  );
   const [permission, setPermission] = useState<NotificationPermission>(
     'Notification' in window ? Notification.permission : 'denied'
   );
@@ -16,7 +17,22 @@ export const PushNotificationManager: React.FC = () => {
   useEffect(() => {
     if (!profile) return;
 
-    const checkSubscription = async () => {
+    const init = async () => {
+      // 1. Fetch VAPID key if not available
+      if (!vapidKey) {
+        try {
+          const res = await fetch('/api/notifications/vapid-key');
+          if (res.ok) {
+            const data = await res.json();
+            setVapidKey(data.publicKey);
+            console.log('Fetched VAPID key from server');
+          }
+        } catch (err) {
+          console.error('Failed to fetch VAPID key:', err);
+        }
+      }
+
+      // 2. Check subscription
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         setLoading(false);
         return;
@@ -33,12 +49,13 @@ export const PushNotificationManager: React.FC = () => {
       }
     };
 
-    checkSubscription();
-  }, [profile]);
+    init();
+  }, [profile, vapidKey]);
 
   const subscribeToPush = async () => {
-    if (!profile || !VAPID_PUBLIC_KEY) {
+    if (!profile || !vapidKey) {
       toast.error('Push notification setup is incomplete. Please check VAPID keys.');
+      console.error('Missing profile or VAPID key:', { profile: !!profile, vapidKey: !!vapidKey });
       return;
     }
 
@@ -58,7 +75,7 @@ export const PushNotificationManager: React.FC = () => {
       // Subscribe
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
       });
 
       // Send to backend
