@@ -21,6 +21,9 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
   );
+  console.log('Web-push configured successfully.');
+} else {
+  console.warn('Web-push keys are missing in environment variables.');
 }
 
 const firebaseConfig = require("./firebase-applet-config.json");

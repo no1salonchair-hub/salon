@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import { Bell, BellOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || (typeof process !== 'undefined' ? process.env.VITE_VAPID_PUBLIC_KEY : undefined);
 
 export const PushNotificationManager: React.FC = () => {
   const { profile } = useAuth();
