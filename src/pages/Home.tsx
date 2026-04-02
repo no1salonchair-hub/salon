@@ -40,6 +40,7 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     console.log('Home: useEffect triggered');
+    
     // Get user location with timeout
     if (navigator.geolocation) {
       console.log('Home: Geolocation is supported');
@@ -122,12 +123,13 @@ export const Home: React.FC = () => {
   return (
     <div className="space-y-8 pb-20">
       {/* Hero Section */}
-      <section className="relative h-[300px] rounded-3xl overflow-hidden group bg-zinc-900">
+      <section className="relative h-[300px] rounded-3xl overflow-hidden group bg-zinc-900 border border-white/5 shadow-2xl">
         <img
-          src="/hero-v2.jpg"
+          src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1920"
           alt="Salon Hero"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           loading="eager"
+          referrerPolicy="no-referrer"
           onError={(e) => {
             console.error('Hero image failed to load:', e);
             const target = e.target as HTMLImageElement;

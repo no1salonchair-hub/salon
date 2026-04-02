@@ -69,7 +69,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
               console.log(`AuthContext: Fetching profile (Attempt ${i + 1}/${retries})...`);
               
-              const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+              // Add a per-attempt timeout
+              const userDocPromise = getDoc(doc(db, 'users', firebaseUser.uid));
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Profile fetch timed out')), 10000)
+              );
+              
+              const userDoc = await Promise.race([userDocPromise, timeoutPromise]) as any;
               const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
               
               if (userDoc.exists()) {
