@@ -124,10 +124,15 @@ export const Home: React.FC = () => {
       {/* Hero Section */}
       <section className="relative h-[300px] rounded-3xl overflow-hidden group bg-zinc-900">
         <img
-          src="/hero.jpg"
+          src="/hero-v2.jpg"
           alt="Salon Hero"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           loading="eager"
+          onError={(e) => {
+            console.error('Hero image failed to load:', e);
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
         <div className="absolute bottom-8 left-8 right-8">

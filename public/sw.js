@@ -1,9 +1,10 @@
 // Basic Service Worker for PWA
-const CACHE_NAME = 'salon-chair-v1';
+const CACHE_NAME = 'salon-chair-v3';
 const ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/hero-v2.jpg'
 ];
 
 self.addEventListener('install', (event) => {
