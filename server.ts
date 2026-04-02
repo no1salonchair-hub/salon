@@ -8,19 +8,20 @@ import dotenv from "dotenv";
 
 const require = createRequire(import.meta.url);
 const Razorpay = require("razorpay");
-const admin = require("firebase-admin");
+const { initializeApp, getApps } = require("firebase-admin/app");
+const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 
 dotenv.config();
 
 const firebaseConfig = require("./firebase-applet-config.json");
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
+if (getApps().length === 0) {
+  initializeApp({
     projectId: firebaseConfig.projectId,
   });
 }
-const db = admin.firestore(firebaseConfig.firestoreDatabaseId);
+const db = getFirestore(firebaseConfig.firestoreDatabaseId);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -256,9 +257,9 @@ async function startServer() {
 
             await salonRef.update({
               status: "active",
-              subscriptionExpiry: admin.firestore.Timestamp.fromDate(expiry),
+              subscriptionExpiry: Timestamp.fromDate(expiry),
               lastPaymentId: payment.id,
-              updatedAt: admin.firestore.Timestamp.now()
+              updatedAt: Timestamp.now()
             });
 
             console.log(`Salon ${salonId} activated successfully`);
