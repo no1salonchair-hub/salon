@@ -8,8 +8,19 @@ import dotenv from "dotenv";
 
 const require = createRequire(import.meta.url);
 const Razorpay = require("razorpay");
+const admin = require("firebase-admin");
 
 dotenv.config();
+
+const firebaseConfig = require("./firebase-applet-config.json");
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+}
+const db = admin.firestore(firebaseConfig.firestoreDatabaseId);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,6 +150,7 @@ async function startServer() {
             fixed_amount: true,
             payment_amount: Math.round(amount * 100),
             description: (description || "Salon Subscription").substring(0, 40),
+            notes: { salonId }
           })
         });
 
@@ -162,6 +174,7 @@ async function startServer() {
         fixed_amount: true,
         payment_amount: Math.round(amount * 100),
         description: (description || "Salon Subscription").substring(0, 40),
+        notes: { salonId }
       });
       
       console.log("QR Code created successfully:", qrCode.id);
@@ -201,6 +214,64 @@ async function startServer() {
       console.error("Razorpay QR Status Error:", error);
       res.status(500).json({ error: "Failed to check QR status" });
     }
+  });
+
+  // Razorpay Webhook
+  app.post("/api/webhook/razorpay", async (req, res) => {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers["x-razorpay-signature"];
+
+    if (!secret) {
+      console.error("RAZORPAY_WEBHOOK_SECRET is not set");
+      return res.status(500).send("Webhook secret missing");
+    }
+
+    const shasum = crypto.createHmac("sha256", secret);
+    shasum.update(JSON.stringify(req.body));
+    const digest = shasum.digest("hex");
+
+    if (signature !== digest) {
+      console.error("Invalid Webhook signature");
+      return res.status(400).send("Invalid signature");
+    }
+
+    const event = req.body.event;
+    console.log("Received Razorpay Webhook:", event);
+
+    if (event === "qr_code.paid") {
+      const payload = req.body.payload.qr_code.entity;
+      const payment = req.body.payload.payment.entity;
+      const salonId = payload.notes?.salonId;
+
+      if (salonId && payment.status === "captured") {
+        console.log(`Activating salon ${salonId} due to payment ${payment.id}`);
+        
+        try {
+          const salonRef = db.collection("salons").doc(salonId);
+          const salonDoc = await salonRef.get();
+
+          if (salonDoc.exists) {
+            const now = new Date();
+            const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+            await salonRef.update({
+              status: "active",
+              subscriptionExpiry: admin.firestore.Timestamp.fromDate(expiry),
+              lastPaymentId: payment.id,
+              updatedAt: admin.firestore.Timestamp.now()
+            });
+
+            console.log(`Salon ${salonId} activated successfully`);
+          } else {
+            console.error(`Salon ${salonId} not found in Firestore`);
+          }
+        } catch (dbError) {
+          console.error("Database update error in webhook:", dbError);
+        }
+      }
+    }
+
+    res.json({ status: "ok" });
   });
 
   // Vite middleware for development
