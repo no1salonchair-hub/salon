@@ -7,7 +7,7 @@ import { Booking, Salon, Payment } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight } from 'lucide-react';
+import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -99,6 +99,12 @@ export const Dashboard: React.FC = () => {
     if (activeTab === 'upcoming') return b.status === 'pending' || b.status === 'accepted';
     return b.status === 'completed' || b.status === 'rejected';
   });
+
+  const shareBookingOnWhatsApp = (booking: Booking) => {
+    const text = `I just had a great experience at Salon Chair! Book your appointment here: ${window.location.origin}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
 
   if (loading) {
     return (
@@ -372,6 +378,15 @@ export const Dashboard: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {booking.status === 'completed' && (
+                      <button
+                        onClick={() => shareBookingOnWhatsApp(booking)}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600/10 text-green-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-600/20 transition-all border border-green-500/20"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Share My Look
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate(`/booking/${booking.id}`)}
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-white/5 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all border border-white/10"

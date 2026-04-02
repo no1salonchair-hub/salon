@@ -9,6 +9,8 @@ import { format, addHours, startOfHour } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { Helmet } from 'react-helmet-async';
+import { Share2 } from 'lucide-react';
 
 export const SalonDetails: React.FC = () => {
   const { salonId } = useParams<{ salonId: string }>();
@@ -114,6 +116,13 @@ export const SalonDetails: React.FC = () => {
     }
   };
 
+  const shareOnWhatsApp = () => {
+    if (!salon) return;
+    const text = `Check out ${salon.name} on Salon Chair! Book your premium salon services here: ${window.location.href}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -126,13 +135,31 @@ export const SalonDetails: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center gap-2 text-white/40 hover:text-white transition-all"
-      >
-        <ChevronLeft className="w-5 h-5" />
-        Back to Marketplace
-      </button>
+      <Helmet>
+        <title>{salon.name} | Book Online at Salon Chair</title>
+        <meta name="description" content={`Book premium services at ${salon.name}. Located in ${salon.location.city}, ${salon.location.state}. Best salon experience guaranteed.`} />
+        <meta property="og:title" content={`${salon.name} | Salon Chair`} />
+        <meta property="og:description" content={`Book your appointment at ${salon.name} today!`} />
+        <meta property="og:image" content={salon.imageUrl} />
+        <meta property="og:url" content={window.location.href} />
+      </Helmet>
+
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-white/40 hover:text-white transition-all"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Back to Marketplace
+        </button>
+        <button
+          onClick={shareOnWhatsApp}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600/10 text-green-500 rounded-xl font-bold hover:bg-green-600/20 transition-all border border-green-500/20"
+        >
+          <Share2 className="w-4 h-4" />
+          Share Salon
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Salon Info */}

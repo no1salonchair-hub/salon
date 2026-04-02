@@ -97,6 +97,11 @@ async function startServer() {
       const keyId = process.env.RAZORPAY_KEY_ID;
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
+      console.log("Razorpay Keys present:", { 
+        keyId: keyId ? "YES (starts with " + keyId.substring(0, 5) + ")" : "NO", 
+        keySecret: keySecret ? "YES" : "NO" 
+      });
+
       if (!keyId || !keySecret) {
         console.error("Missing Razorpay keys in environment variables");
         return res.status(500).json({ 
@@ -110,17 +115,43 @@ async function startServer() {
       let rzp;
       try {
         rzp = getRazorpay(keyId, keySecret);
+        console.log("Razorpay SDK initialized. Available properties:", Object.keys(rzp));
       } catch (initError: any) {
         console.error("Razorpay Init Error:", initError);
         return res.status(500).json({ error: "Razorpay Initialization Failed", details: initError.message });
       }
 
       if (!rzp.qrCode) {
-        console.error("razorpay.qrCode property is missing! SDK version:", (rzp as any).VERSION || "unknown");
-        return res.status(500).json({ 
-          error: "Razorpay SDK Error", 
-          details: "The QR Code feature is not available in this version of the Razorpay SDK." 
+        console.error("razorpay.qrCode property is missing! SDK VERSION:", (rzp as any).VERSION || "unknown");
+        // Fallback to direct API call if SDK is broken
+        console.log("Attempting direct API fallback...");
+        const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+        const apiResponse = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${auth}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            type: "upi_qr",
+            name: (name || "Salon Chair").substring(0, 40),
+            usage: "single_payment",
+            fixed_amount: true,
+            payment_amount: Math.round(amount * 100),
+            description: (description || "Salon Subscription").substring(0, 40),
+          })
         });
+
+        const apiData: any = await apiResponse.json();
+        if (!apiResponse.ok) {
+          console.error("Razorpay Direct API Error:", apiData);
+          return res.status(apiResponse.status).json({ 
+            error: "Razorpay API Error", 
+            details: apiData.error?.description || "Failed to create QR code via direct API" 
+          });
+        }
+        console.log("QR Code created via direct API:", apiData.id);
+        return res.json(apiData);
       }
 
       console.log("Calling rzp.qrCode.create with params...");

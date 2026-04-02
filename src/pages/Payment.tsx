@@ -221,6 +221,11 @@ export const Payment: React.FC = () => {
                 <div className="w-full space-y-4">
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
                     <p className="text-sm text-red-500 font-bold">{qrError}</p>
+                    {qrError.toLowerCase().includes('key') && (
+                      <p className="text-[10px] text-red-400 mt-2 uppercase tracking-widest font-black">
+                        Tip: Check your Razorpay Keys in Settings &gt; Secrets
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleRazorpayQR()}

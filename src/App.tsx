@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AnimatePresence, motion } from 'motion/react';
 import { Toaster } from 'sonner';
+import { HelmetProvider } from 'react-helmet-async';
 
 // Import all pages directly
 import { Login } from './pages/Login';
@@ -96,31 +97,33 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <Router>
-          <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              
-              <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/salon-setup" element={<ProtectedRoute><SalonSetup /></ProtectedRoute>} />
-              <Route path="/salon/:salonId" element={<ProtectedRoute><SalonDetails /></ProtectedRoute>} />
-              <Route path="/booking/:bookingId" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-              <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/contact" element={<Contact />} />
+    <HelmetProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <Router>
+            <AnimatePresence mode="wait">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                
+                <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/salon-setup" element={<ProtectedRoute><SalonSetup /></ProtectedRoute>} />
+                <Route path="/salon/:salonId" element={<ProtectedRoute><SalonDetails /></ProtectedRoute>} />
+                <Route path="/booking/:bookingId" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+                <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/contact" element={<Contact />} />
 
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </AnimatePresence>
-        </Router>
-        <Toaster position="top-center" expand={false} richColors />
-      </AuthProvider>
-    </ErrorBoundary>
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </AnimatePresence>
+          </Router>
+          <Toaster position="top-center" expand={false} richColors />
+        </AuthProvider>
+      </ErrorBoundary>
+    </HelmetProvider>
   );
 };
 
