@@ -122,12 +122,11 @@ export const Home: React.FC = () => {
   return (
     <div className="space-y-8 pb-20">
       {/* Hero Section */}
-      <section className="relative h-[300px] rounded-3xl overflow-hidden group">
+      <section className="relative h-[300px] rounded-3xl overflow-hidden group bg-zinc-900">
         <img
-          src="/HERO.jpg"
+          src="/hero.jpg"
           alt="Salon Hero"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          referrerPolicy="no-referrer"
           loading="eager"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
