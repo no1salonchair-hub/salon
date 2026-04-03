@@ -1,5 +1,5 @@
 // Robust Service Worker for Salon Chair PWA
-const CACHE_NAME = 'salon-chair-v2';
+const CACHE_NAME = 'salon-chair-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 
 // Install event - cache core assets
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -22,7 +22,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      self.clients.claim(), // Become available to all pages immediately
+      self.clients.claim(),
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
@@ -36,23 +36,45 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - Network First for HTML/JS, Cache First for Images
+// Fetch event - Optimized for mobile speed
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
-  // Strategy: Network First for the main document and scripts
-  // This prevents the "black screen" issue where old index.html points to deleted JS chunks
-  if (request.mode === 'navigate' || request.destination === 'script' || request.destination === 'style') {
+  // Strategy: Network First with Timeout for Navigation
+  // This ensures we get the latest index.html but don't wait forever on slow mobile data
+  if (request.mode === 'navigate') {
+    const timeoutPromise = new Promise((resolve) => 
+      setTimeout(() => resolve(null), 2500) // 2.5s timeout
+    );
+
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Update the cache with the fresh version
+      Promise.race([
+        fetch(request).then(response => {
+          if (!response || response.status !== 200) return caches.match(request);
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
           return response;
-        })
-        .catch(() => caches.match(request)) // Fallback to cache if offline
+        }),
+        timeoutPromise
+      ]).then(response => response || caches.match(request))
+    );
+    return;
+  }
+
+  // Strategy: Stale-While-Revalidate for Scripts and Styles
+  // This makes the app load instantly from cache while updating in the background
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        const fetchPromise = fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        });
+        return cachedResponse || fetchPromise;
+      })
     );
     return;
   }
@@ -61,6 +83,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(request).then((response) => {
       return response || fetch(request).then((fetchRes) => {
+        if (!fetchRes || fetchRes.status !== 200) return fetchRes;
         return caches.open(CACHE_NAME).then((cache) => {
           cache.put(request, fetchRes.clone());
           return fetchRes;

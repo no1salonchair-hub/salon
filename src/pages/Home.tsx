@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Salon } from '../types';
-import { MapPin, Search, Star, Scissors, Clock, ChevronRight } from 'lucide-react';
+import { MapPin, Search, Star, Scissors, Clock, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+
+type SortOption = 'distance' | 'alphabetical' | 'recent';
 
 // Haversine formula to calculate distance in KM
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -32,6 +34,7 @@ export const Home: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [distanceRange, setDistanceRange] = useState(5); // Default to 5km
+  const [sortBy, setSortBy] = useState<SortOption>('recent');
   const navigate = useNavigate();
 
   if (error) {
@@ -91,9 +94,9 @@ export const Home: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const filteredSalons = React.useMemo(() => {
+  const sortedSalons = React.useMemo(() => {
     const now = new Date();
-    return salons.filter((salon) => {
+    const filtered = salons.filter((salon) => {
       // Filter out expired salons
       if (salon.subscriptionExpiry) {
         const expiryDate = salon.subscriptionExpiry.toDate();
@@ -116,9 +119,34 @@ export const Home: React.FC = () => {
         return matchesSearch;
       }
     });
-  }, [salons, searchQuery, userLocation, distanceRange]);
 
-  console.log('Home: Rendering', { loading, salonsCount: salons.length, filteredCount: filteredSalons.length, hasLocation: !!userLocation });
+    // Apply sorting
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'alphabetical') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      
+      if (sortBy === 'recent') {
+        const dateA = a.createdAt?.toMillis() || 0;
+        const dateB = b.createdAt?.toMillis() || 0;
+        return dateB - dateA;
+      }
+
+      if (sortBy === 'distance' && userLocation && a.location && b.location) {
+        try {
+          const distA = getDistance(userLocation.lat, userLocation.lng, a.location.lat, a.location.lng);
+          const distB = getDistance(userLocation.lat, userLocation.lng, b.location.lat, b.location.lng);
+          return distA - distB;
+        } catch (e) {
+          return 0;
+        }
+      }
+
+      return 0;
+    });
+  }, [salons, searchQuery, userLocation, distanceRange, sortBy]);
+
+  console.log('Home: Rendering', { loading, salonsCount: salons.length, filteredCount: sortedSalons.length, hasLocation: !!userLocation });
 
   return (
     <div className="space-y-8 pb-20">
@@ -178,7 +206,24 @@ export const Home: React.FC = () => {
             <span className="text-sm font-normal text-white/40 ml-2">(Within {distanceRange}km)</span>
           </h2>
 
-          <div className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[280px]">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 p-2 rounded-2xl w-full sm:w-auto">
+              <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-white/40">
+                <ArrowUpDown className="w-5 h-5" />
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-transparent text-white text-xs font-bold uppercase tracking-widest focus:outline-none pr-4 cursor-pointer"
+              >
+                <option value="recent" className="bg-zinc-900">Recently Added</option>
+                <option value="alphabetical" className="bg-zinc-900">Alphabetical (A-Z)</option>
+                {userLocation && <option value="distance" className="bg-zinc-900">Nearest First</option>}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[280px] w-full sm:w-auto">
             <div className="flex-1 space-y-2">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-white/40">
                 <span>Range</span>
@@ -199,16 +244,17 @@ export const Home: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {loading ? (
+      {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-[400px] bg-white/5 animate-pulse rounded-3xl" />
             ))}
           </div>
-        ) : filteredSalons.length > 0 ? (
+        ) : sortedSalons.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSalons.map((salon) => (
+            {sortedSalons.map((salon) => (
               <div
                 key={salon.id}
                 onClick={() => navigate(`/salon/${salon.id}`)}
