@@ -30,7 +30,7 @@ export interface Salon {
     address?: string;
   };
   status: 'pending' | 'active' | 'hidden';
-  subscriptionPlan?: '1_month' | '12_months';
+  subscriptionPlan?: 'monthly' | 'yearly';
   subscriptionExpiry: Timestamp;
   averageRating?: number;
   reviewCount?: number;

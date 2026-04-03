@@ -16,8 +16,28 @@ export const Payment: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [step, setStep] = useState<'info' | 'qr' | 'success'>('info');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [step, setStep] = useState<'info' | 'success'>('info');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+
+  const plans = {
+    monthly: {
+      id: 'monthly',
+      name: 'Monthly Premium',
+      amount: 200,
+      duration: 30,
+      description: '₹200 / month for premium marketplace listing.'
+    },
+    yearly: {
+      id: 'yearly',
+      name: 'Yearly Premium (Save 17%)',
+      amount: 2000,
+      duration: 365,
+      description: '₹2000 / year (Get 2 months free!)'
+    }
+  };
+
+  const currentPlan = plans[selectedPlan];
 
   useEffect(() => {
     if (!profile) return;
@@ -50,106 +70,107 @@ export const Payment: React.FC = () => {
     });
   }, [profile, navigate]);
 
-  const [qrCodeData, setQrCodeData] = useState<any>(null);
-  const [polling, setPolling] = useState(false);
-
-  useEffect(() => {
-    let interval: any;
-    if (polling && qrCodeData?.id) {
-      interval = setInterval(async () => {
-        try {
-          const response = await fetch(`/api/payment/qr/${qrCodeData.id}`);
-          const data = await response.json();
-          if (data.status === 'paid') {
-            setPolling(false);
-            clearInterval(interval);
-            
-            // Save to Firestore
-            await addDoc(collection(db, 'payments'), {
-              salonId: salon?.id,
-              amount: 200,
-              status: 'success', // Mark as success since it's verified
-              createdAt: Timestamp.now(),
-              requestedBy: profile?.uid,
-              salonName: salon?.name,
-              razorpayPaymentId: data.payment.id,
-              razorpayQrId: qrCodeData.id,
-            });
-
-            // Update Salon Status and Expiry
-            if (salon?.id) {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30); // Add 30 days
-              
-              await updateDoc(doc(db, 'salons', salon.id), {
-                status: 'active',
-                subscriptionExpiry: Timestamp.fromDate(expiryDate)
-              });
-            }
-            
-            setStep('success');
-            toast.success('Payment verified! Your salon is now active and listed.');
-          }
-        } catch (error) {
-          console.error('Polling error:', error);
-        }
-      }, 5000); // Poll every 5 seconds
-    }
-    return () => clearInterval(interval);
-  }, [polling, qrCodeData, salon, profile]);
-
-  useEffect(() => {
-    if (salon && profile && step === 'info' && !qrCodeData && !paymentLoading && !qrError) {
-      handleRazorpayQR().catch(err => {
-        console.error('Auto QR generation failed:', err);
-        setQrError(err.message || 'Failed to generate payment QR.');
-      });
-    }
-  }, [salon, profile, step, qrCodeData, paymentLoading, qrError]);
-
-  const handleRazorpayQR = async () => {
+  const handleRazorpayCheckout = async () => {
     if (!salon || !profile) return;
     setPaymentLoading(true);
-    setQrError(null);
+    setPaymentError(null);
 
     try {
-      const response = await fetch('/api/payment/qr', {
+      // 1. Create Order on Backend
+      const orderResponse = await fetch('/api/payment/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: 200,
-          name: 'Salon Chair',
-          description: `Subscription for ${salon.name}`,
+          amount: currentPlan.amount,
+          currency: 'INR',
+          receipt: `rcpt_${Date.now()}_${salon.id.substring(0, 8)}`,
           salonId: salon.id,
+          planId: currentPlan.id
         }),
       });
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        console.error('Non-JSON response:', text);
-        // If it's a short text, show it. If it's a long HTML page, show a generic error.
-        const displayMessage = text.length < 500 ? text : 'Server returned an invalid response. This often happens if your Razorpay keys are incorrect or your account is not activated for UPI.';
-        throw new Error(displayMessage);
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to create payment order');
       }
 
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Razorpay API Error Data:', data);
-        const errorMsg = data.details || data.reason || data.error || `Server error: ${response.status}`;
-        throw new Error(errorMsg);
-      }
-      
-      setQrCodeData(data);
-      setStep('qr');
-      setPolling(true);
-      toast.info('QR Code generated! Please scan and pay.');
-    } catch (error: any) {
-      console.error('Razorpay QR Error:', error);
-      const msg = error.message || 'Failed to generate payment QR. Please check your internet connection or Razorpay settings.';
-      setQrError(msg);
-      toast.error(msg);
-    } finally {
+      const order = await orderResponse.json();
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || '', // Public key
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Salon Chair',
+        description: `${currentPlan.name} for ${salon.name}`,
+        order_id: order.id,
+        handler: async (response: any) => {
+          try {
+            setPaymentLoading(true);
+            // 3. Verify Payment on Backend
+            const verifyResponse = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                salonId: salon.id,
+                planId: currentPlan.id
+              }),
+            });
+
+            if (!verifyResponse.ok) {
+              throw new Error('Payment verification failed');
+            }
+
+            // 4. Save Payment Record to Firestore
+            await addDoc(collection(db, 'payments'), {
+              salonId: salon.id,
+              amount: currentPlan.amount,
+              planId: currentPlan.id,
+              status: 'success',
+              createdAt: Timestamp.now(),
+              requestedBy: profile.uid,
+              salonName: salon.name,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+            });
+
+            setStep('success');
+            toast.success('Payment successful! Your salon is now active.');
+          } catch (err: any) {
+            console.error('Verification error:', err);
+            toast.error(err.message || 'Verification failed. Please contact support.');
+          } finally {
+            setPaymentLoading(false);
+          }
+        },
+        prefill: {
+          name: profile.name || '',
+          email: profile.email || '',
+        },
+        theme: {
+          color: '#9333ea',
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentLoading(false);
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error('Payment failed:', response.error);
+        toast.error(`Payment failed: ${response.error.description}`);
+        setPaymentLoading(false);
+      });
+      rzp.open();
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setPaymentError(err.message || 'Failed to initialize payment');
+      toast.error(err.message || 'Failed to initialize payment');
       setPaymentLoading(false);
     }
   };
@@ -182,8 +203,30 @@ export const Payment: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-black text-white italic">Salon Subscription</h1>
-                <p className="text-white/40">₹200 / month for premium marketplace listing.</p>
+                <p className="text-white/40">Choose a plan for premium marketplace listing.</p>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.values(plans).map((plan) => (
+                <button
+                  key={plan.id}
+                  onClick={() => setSelectedPlan(plan.id as 'monthly' | 'yearly')}
+                  className={cn(
+                    "p-6 rounded-2xl border text-left transition-all space-y-2",
+                    selectedPlan === plan.id
+                      ? "bg-purple-600/20 border-purple-500 shadow-lg shadow-purple-600/10"
+                      : "bg-white/5 border-white/10 hover:border-white/20"
+                  )}
+                >
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-white">{plan.name}</h3>
+                    {selectedPlan === plan.id && <CheckCircle className="w-5 h-5 text-purple-500" />}
+                  </div>
+                  <p className="text-2xl font-black text-white">₹{plan.amount}</p>
+                  <p className="text-xs text-white/40">{plan.description}</p>
+                </button>
+              ))}
             </div>
 
             <div className="space-y-4">
@@ -201,106 +244,55 @@ export const Payment: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-white/40">Plan</span>
-                  <span className="font-bold text-white">Monthly Premium</span>
+                  <span className="font-bold text-white">{currentPlan.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-white/40">Amount</span>
-                  <span className="text-2xl font-black text-purple-400">₹200</span>
+                  <span className="text-2xl font-black text-purple-400">₹{currentPlan.amount}</span>
                 </div>
               </div>
 
               <div className="p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl flex items-center gap-3">
                 <ShieldCheck className="w-6 h-6 text-blue-400" />
                 <p className="text-sm text-blue-400">
-                  Your salon will be activated for 30 days after admin verification.
+                  Your salon will be activated for {currentPlan.duration} days after payment verification.
                 </p>
               </div>
             </div>
 
             <div className="flex justify-center">
-              {qrError ? (
+              {paymentError ? (
                 <div className="w-full space-y-4">
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
-                    <p className="text-sm text-red-500 font-bold">{qrError}</p>
-                    {qrError.toLowerCase().includes('key') && (
+                    <p className="text-sm text-red-500 font-bold">{paymentError}</p>
+                    {paymentError.toLowerCase().includes('key') && (
                       <p className="text-[10px] text-red-400 mt-2 uppercase tracking-widest font-black">
                         Tip: Check your Razorpay Keys in Settings &gt; Secrets
                       </p>
                     )}
                   </div>
                   <button
-                    onClick={() => handleRazorpayQR()}
+                    onClick={() => handleRazorpayCheckout()}
                     className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
                   >
                     <Zap className="w-5 h-5 fill-white" />
-                    Retry Generating QR Code
+                    Retry Payment
                   </button>
                 </div>
-              ) : (
+              ) : paymentLoading ? (
                 <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 justify-center w-full">
                   <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
-                  <p className="text-sm text-purple-400 font-bold uppercase tracking-widest">Generating Secure QR Code...</p>
+                  <p className="text-sm text-purple-400 font-bold uppercase tracking-widest">Processing Payment...</p>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === 'qr' && (
-          <div
-            key="qr"
-            className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
-          >
-            <div className="space-y-4">
-              <h2 className="text-3xl font-black text-white italic">Scan to Pay</h2>
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex justify-between items-center max-w-sm mx-auto">
-                <div className="text-left">
-                  <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Salon</p>
-                  <p className="text-sm font-bold text-white">{salon.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Amount</p>
-                  <p className="text-xl font-black text-purple-400">₹200</p>
-                </div>
-              </div>
-              <p className="text-white/40 text-sm">Scan this dynamic QR code with any UPI app.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
-              {qrCodeData?.image_url ? (
-                <img 
-                  src={qrCodeData.image_url} 
-                  alt="Payment QR" 
-                  className="w-64 h-64 mx-auto"
-                  referrerPolicy="no-referrer"
-                />
               ) : (
-                <div className="w-64 h-64 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-                </div>
+                <button
+                  onClick={() => handleRazorpayCheckout()}
+                  className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-6 h-6 fill-white" />
+                  Pay Now with Razorpay
+                </button>
               )}
-            </div>
-
-            <div className="space-y-4 max-w-sm mx-auto">
-              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 justify-center">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-                <p className="text-sm text-purple-400 font-bold">Waiting for payment confirmation...</p>
-              </div>
-
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-left">
-                <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">QR ID</p>
-                <p className="text-xs font-mono text-white truncate">{qrCodeData?.id}</p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setPolling(false);
-                  navigate('/dashboard');
-                }}
-                className="text-white/40 text-xs font-bold hover:text-white transition-colors"
-              >
-                Cancel and Go Back
-              </button>
             </div>
           </div>
         )}
@@ -316,7 +308,7 @@ export const Payment: React.FC = () => {
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-white italic">Salon Activated!</h2>
               <p className="text-white/40 max-w-sm mx-auto">
-                Your payment has been verified and your salon is now active in the marketplace for the next 30 days.
+                Your payment has been verified and your salon is now active in the marketplace for the next {currentPlan.duration} days.
               </p>
             </div>
             <button

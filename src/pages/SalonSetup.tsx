@@ -26,7 +26,7 @@ export const SalonSetup: React.FC = () => {
   const [selectedCity, setSelectedCity] = useState('');
   const [address, setAddress] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [subscriptionPlan, setSubscriptionPlan] = useState<'1_month' | '12_months'>('1_month');
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'monthly' | 'yearly'>('monthly');
 
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
@@ -226,11 +226,11 @@ export const SalonSetup: React.FC = () => {
         // Create new salon
         console.log('Creating new salon document in Firestore...');
         const subscriptionExpiry = new Date();
-        if (subscriptionPlan === '1_month') {
-          subscriptionExpiry.setMonth(subscriptionExpiry.getMonth() + 1);
+        if (subscriptionPlan === 'monthly') {
+          subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 30);
         } else {
-          // 12 months plan
-          subscriptionExpiry.setFullYear(subscriptionExpiry.getFullYear() + 1);
+          // yearly plan
+          subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 365);
         }
 
         const salonData: Omit<Salon, 'id'> = {
@@ -470,10 +470,10 @@ export const SalonSetup: React.FC = () => {
             <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Choose Subscription Plan</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div 
-                onClick={() => setSubscriptionPlan('1_month')}
+                onClick={() => setSubscriptionPlan('monthly')}
                 className={cn(
                   "p-6 rounded-3xl border-2 cursor-pointer transition-all",
-                  subscriptionPlan === '1_month' 
+                  subscriptionPlan === 'monthly' 
                     ? "bg-purple-600/20 border-purple-600 shadow-lg shadow-purple-600/10" 
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
@@ -482,22 +482,22 @@ export const SalonSetup: React.FC = () => {
                   <div className="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center text-purple-400">
                     <Clock className="w-5 h-5" />
                   </div>
-                  {subscriptionPlan === '1_month' && (
+                  {subscriptionPlan === 'monthly' && (
                     <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
                       <div className="w-2 h-2 bg-white rounded-full" />
                     </div>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-white mb-1">1 Month</h3>
+                <h3 className="text-xl font-black text-white mb-1">Monthly</h3>
                 <p className="text-purple-400 font-black text-2xl mb-2">₹200</p>
                 <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Standard monthly plan</p>
               </div>
 
               <div 
-                onClick={() => setSubscriptionPlan('12_months')}
+                onClick={() => setSubscriptionPlan('yearly')}
                 className={cn(
                   "p-6 rounded-3xl border-2 cursor-pointer transition-all relative overflow-hidden",
-                  subscriptionPlan === '12_months' 
+                  subscriptionPlan === 'yearly' 
                     ? "bg-blue-600/20 border-blue-600 shadow-lg shadow-blue-600/10" 
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
@@ -509,13 +509,13 @@ export const SalonSetup: React.FC = () => {
                   <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center text-blue-400">
                     <Star className="w-5 h-5" />
                   </div>
-                  {subscriptionPlan === '12_months' && (
+                  {subscriptionPlan === 'yearly' && (
                     <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
                       <div className="w-2 h-2 bg-white rounded-full" />
                     </div>
                   )}
                 </div>
-                <h3 className="text-xl font-black text-white mb-1">12 Months</h3>
+                <h3 className="text-xl font-black text-white mb-1">Yearly</h3>
                 <p className="text-blue-400 font-black text-2xl mb-2">₹2000</p>
                 <div className="space-y-1">
                   <p className="text-green-400 text-xs font-black uppercase tracking-widest">2 Months Free!</p>

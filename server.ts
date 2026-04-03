@@ -162,6 +162,10 @@ async function startServer() {
         amount: Math.round(amount * 100), // amount in the smallest currency unit
         currency,
         receipt,
+        notes: {
+          salonId: req.body.salonId,
+          planId: req.body.planId
+        }
       };
       const order = await rzp.orders.create(options);
       res.json(order);
@@ -175,7 +179,7 @@ async function startServer() {
   // Razorpay Payment Verification
   app.post("/api/payment/verify", async (req, res) => {
     try {
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, salonId, planId } = req.body;
       const sign = razorpay_order_id + "|" + razorpay_payment_id;
       const expectedSign = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
@@ -183,6 +187,31 @@ async function startServer() {
         .digest("hex");
 
       if (razorpay_signature === expectedSign) {
+        // Activate salon if salonId and planId are provided
+        if (salonId && planId) {
+          console.log(`Activating salon ${salonId} via direct verification (Plan: ${planId})`);
+          const salonRef = db.collection("salons").doc(salonId);
+          const salonDoc = await salonRef.get();
+
+          if (salonDoc.exists) {
+            const now = new Date();
+            let durationDays = 30;
+            if (planId === 'yearly') {
+              durationDays = 365;
+            }
+            
+            const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+            await salonRef.update({
+              status: "active",
+              subscriptionExpiry: Timestamp.fromDate(expiry),
+              subscriptionPlan: planId,
+              lastPaymentId: razorpay_payment_id,
+              updatedAt: Timestamp.now()
+            });
+            console.log(`Salon ${salonId} activated successfully via verification`);
+          }
+        }
         res.json({ status: "ok" });
       } else {
         res.status(400).json({ error: "Invalid signature" });
@@ -190,138 +219,6 @@ async function startServer() {
     } catch (error) {
       console.error("Razorpay Verification Error:", error);
       res.status(500).json({ error: "Verification failed" });
-    }
-  });
-
-  // Razorpay QR Code Creation
-  app.post("/api/payment/qr", async (req, res) => {
-    try {
-      const { amount, name, description, salonId } = req.body;
-      console.log("QR Request received:", { amount, name, description, salonId });
-      
-      const keyId = process.env.RAZORPAY_KEY_ID;
-      const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-      console.log("Razorpay Keys present:", { 
-        keyId: keyId ? "YES (starts with " + keyId.substring(0, 5) + ")" : "NO", 
-        keySecret: keySecret ? "YES" : "NO" 
-      });
-
-      if (!keyId || !keySecret) {
-        console.error("Missing Razorpay keys in environment variables");
-        return res.status(500).json({ 
-          error: "Razorpay keys are missing", 
-          details: "Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to the Secrets panel." 
-        });
-      }
-
-      console.log("Initializing Razorpay with Key ID:", keyId.substring(0, 8) + "...");
-      
-      let rzp;
-      try {
-        rzp = getRazorpay(keyId, keySecret);
-        console.log("Razorpay SDK initialized. Available properties:", Object.keys(rzp));
-      } catch (initError: any) {
-        console.error("Razorpay Init Error:", initError);
-        return res.status(500).json({ error: "Razorpay Initialization Failed", details: initError.message });
-      }
-
-      if (!rzp.qrCode) {
-        console.error("razorpay.qrCode property is missing! SDK VERSION:", (rzp as any).VERSION || "unknown");
-        // Fallback to direct API call if SDK is broken
-        console.log("Attempting direct API fallback...");
-        const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-        
-        try {
-          const apiResponse = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
-            method: "POST",
-            headers: {
-              "Authorization": `Basic ${auth}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              type: "upi_qr",
-              name: (name || "Salon Chair").substring(0, 40),
-              usage: "single_payment",
-              fixed_amount: true,
-              payment_amount: Math.round(amount * 100),
-              description: (description || "Salon Subscription").substring(0, 40),
-              notes: { salonId }
-            })
-          });
-
-          const apiData: any = await apiResponse.json();
-          if (!apiResponse.ok) {
-            console.error("Razorpay Direct API Error Response:", JSON.stringify(apiData, null, 2));
-            return res.status(apiResponse.status).json({ 
-              error: "Razorpay API Error", 
-              details: apiData.error?.description || apiData.error?.reason || "Failed to create QR code via direct API",
-              raw: apiData
-            });
-          }
-          console.log("QR Code created via direct API:", apiData.id);
-          return res.json(apiData);
-        } catch (fetchError: any) {
-          console.error("Direct API Fetch Error:", fetchError);
-          return res.status(500).json({ 
-            error: "Direct API Call Failed", 
-            details: fetchError.message || "Network error while calling Razorpay API directly" 
-          });
-        }
-      }
-
-      console.log("Calling rzp.qrCode.create with params...");
-      const qrCode = await rzp.qrCode.create({
-        type: "upi_qr",
-        name: (name || "Salon Chair").substring(0, 40),
-        usage: "single_payment",
-        fixed_amount: true,
-        payment_amount: Math.round(amount * 100),
-        description: (description || "Salon Subscription").substring(0, 40),
-        notes: { salonId }
-      });
-      
-      console.log("QR Code created successfully:", qrCode.id);
-      res.json(qrCode);
-    } catch (error: any) {
-      console.error("Razorpay QR Runtime Error:", error);
-      
-      // Extract as much detail as possible
-      const details = error.error?.description || error.description || error.message || "Unknown Razorpay error";
-      const reason = error.error?.reason || error.reason;
-      
-      res.status(500).json({ 
-        error: "Failed to create QR code", 
-        details: details,
-        reason: reason,
-        code: error.code,
-        statusCode: error.statusCode,
-        step: "runtime_catch"
-      });
-    }
-  });
-
-  // Check QR Code Payment Status
-  app.get("/api/payment/qr/:qrId", async (req, res) => {
-    try {
-      const { qrId } = req.params;
-      const keyId = process.env.RAZORPAY_KEY_ID || "";
-      const keySecret = process.env.RAZORPAY_KEY_SECRET || "";
-      const rzp = getRazorpay(keyId, keySecret);
-      
-      const payments = await rzp.qrCode.fetchAllPayments(qrId);
-      
-      // If there's at least one successful payment for this QR code
-      const successfulPayment = payments.items.find((p: any) => p.status === "captured");
-      
-      if (successfulPayment) {
-        res.json({ status: "paid", payment: successfulPayment });
-      } else {
-        res.json({ status: "pending" });
-      }
-    } catch (error) {
-      console.error("Razorpay QR Status Error:", error);
-      res.status(500).json({ error: "Failed to check QR status" });
     }
   });
 
@@ -347,13 +244,14 @@ async function startServer() {
     const event = req.body.event;
     console.log("Received Razorpay Webhook:", event);
 
-    if (event === "qr_code.paid") {
-      const payload = req.body.payload.qr_code.entity;
+    if (event === "order.paid") {
+      const payload = req.body.payload.order.entity;
       const payment = req.body.payload.payment.entity;
       const salonId = payload.notes?.salonId;
+      const planId = payload.notes?.planId;
 
       if (salonId && payment.status === "captured") {
-        console.log(`Activating salon ${salonId} due to payment ${payment.id}`);
+        console.log(`Activating salon ${salonId} via webhook (Plan: ${planId})`);
         
         try {
           const salonRef = db.collection("salons").doc(salonId);
@@ -361,18 +259,22 @@ async function startServer() {
 
           if (salonDoc.exists) {
             const now = new Date();
-            const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+            let durationDays = 30;
+            if (planId === 'yearly') {
+              durationDays = 365;
+            }
+            
+            const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
             await salonRef.update({
               status: "active",
               subscriptionExpiry: Timestamp.fromDate(expiry),
+              subscriptionPlan: planId || 'monthly',
               lastPaymentId: payment.id,
               updatedAt: Timestamp.now()
             });
 
-            console.log(`Salon ${salonId} activated successfully`);
-          } else {
-            console.error(`Salon ${salonId} not found in Firestore`);
+            console.log(`Salon ${salonId} activated successfully via webhook`);
           }
         } catch (dbError) {
           console.error("Database update error in webhook:", dbError);
