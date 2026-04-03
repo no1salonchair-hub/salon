@@ -140,9 +140,9 @@ export const Home: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
         <div className="absolute bottom-8 left-8 right-8">
           <h1
-            className="text-4xl md:text-5xl font-black mb-4 text-white"
+            className="text-[28px] md:text-[40px] font-black mb-4 text-white"
           >
-            Find Your Perfect Style
+            The Best Seat is Waiting
           </h1>
           <div className="flex flex-col md:flex-row gap-4 max-w-2xl">
             <div className="relative flex-1">
