@@ -38,6 +38,8 @@ service cloud.firestore {
              (!('address' in doc.location) || doc.location.address is string) &&
              doc.status in ['pending', 'active', 'hidden'] &&
              doc.subscriptionExpiry is timestamp &&
+             (!('averageRating' in doc) || doc.averageRating is number) &&
+             (!('reviewCount' in doc) || doc.reviewCount is number) &&
              doc.createdAt is timestamp;
     }
 
@@ -47,6 +49,7 @@ service cloud.firestore {
              doc.services is list && doc.services.size() > 0 &&
              doc.dateTime is timestamp &&
              doc.status in ['pending', 'accepted', 'rejected', 'completed'] &&
+             (!('isRated' in doc) || doc.isRated is bool) &&
              doc.createdAt is timestamp;
     }
 
@@ -67,6 +70,15 @@ service cloud.firestore {
              doc.razorpayPaymentId is string &&
              (!('razorpayOrderId' in doc) || doc.razorpayOrderId is string) &&
              (!('razorpayQrId' in doc) || doc.razorpayQrId is string);
+    }
+
+    function isValidReview(doc) {
+      return doc.salonId is string &&
+             doc.userId is string &&
+             doc.userName is string &&
+             doc.rating is number && doc.rating >= 1 && doc.rating <= 5 &&
+             doc.comment is string && doc.comment.size() > 0 && doc.comment.size() < 1000 &&
+             doc.createdAt is timestamp;
     }
 
     match /users/{userId} {
@@ -107,6 +119,15 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId) || isAdmin());
       allow create: if isAuthenticated() && isOwner(get(/databases/$(database)/documents/salons/$(request.resource.data.salonId)).data.ownerId) && isValidPayment(request.resource.data) && request.resource.data.status == 'pending';
       allow update: if isAdmin() && isValidPayment(request.resource.data);
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidReview(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.userId) && isValidReview(request.resource.data) && 
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.salonId == resource.data.salonId;
+      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
     }
   }
 }

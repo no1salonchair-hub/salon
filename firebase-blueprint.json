@@ -44,6 +44,8 @@
         },
         "status": { "type": "string", "enum": ["pending", "active", "hidden"], "description": "Salon approval status" },
         "subscriptionExpiry": { "type": "string", "format": "date-time", "description": "When the subscription expires" },
+        "averageRating": { "type": "number", "description": "Average rating of the salon" },
+        "reviewCount": { "type": "integer", "description": "Total number of reviews" },
         "createdAt": { "type": "string", "format": "date-time", "description": "When the salon was created" }
       },
       "required": ["id", "ownerId", "name", "services", "imageUrl", "location", "status", "subscriptionExpiry", "createdAt"]
@@ -63,6 +65,7 @@
         },
         "dateTime": { "type": "string", "format": "date-time", "description": "Booking date and time" },
         "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "completed"], "description": "Booking status" },
+        "isRated": { "type": "boolean", "description": "Whether the booking has been rated" },
         "createdAt": { "type": "string", "format": "date-time", "description": "When the booking was created" }
       },
       "required": ["id", "userId", "salonId", "services", "dateTime", "status", "createdAt"]
@@ -97,6 +100,21 @@
         "razorpayQrId": { "type": "string", "description": "Razorpay QR ID (optional for Checkout)" }
       },
       "required": ["id", "salonId", "amount", "status", "createdAt", "requestedBy", "salonName", "razorpayPaymentId"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User review for a salon",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique review ID" },
+        "salonId": { "type": "string", "description": "ID of the salon being reviewed" },
+        "userId": { "type": "string", "description": "UID of the user who wrote the review" },
+        "userName": { "type": "string", "description": "Name of the user who wrote the review" },
+        "rating": { "type": "number", "description": "Rating given by the user (1-5)" },
+        "comment": { "type": "string", "description": "Review comment" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the review was created" }
+      },
+      "required": ["id", "salonId", "userId", "userName", "rating", "comment", "createdAt"]
     }
   },
   "firestore": {
@@ -104,6 +122,7 @@
     "/salons/{salonId}": { "schema": "Salon", "description": "Salon listings" },
     "/bookings/{bookingId}": { "schema": "Booking", "description": "Salon bookings" },
     "/bookings/{bookingId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages for a booking" },
-    "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" }
+    "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Salon reviews" }
   }
 }

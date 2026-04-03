@@ -32,6 +32,8 @@ export interface Salon {
   status: 'pending' | 'active' | 'hidden';
   subscriptionPlan?: '1_month' | '12_months';
   subscriptionExpiry: Timestamp;
+  averageRating?: number;
+  reviewCount?: number;
   createdAt: Timestamp;
 }
 
@@ -42,6 +44,7 @@ export interface Booking {
   services: string[];
   dateTime: Timestamp;
   status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  isRated?: boolean;
   createdAt: Timestamp;
 }
 
@@ -59,6 +62,16 @@ export interface Payment {
   salonName?: string;
   amount: number;
   status: 'pending' | 'success';
+  createdAt: Timestamp;
+}
+
+export interface Review {
+  id: string;
+  salonId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
   createdAt: Timestamp;
 }
 

@@ -270,7 +270,12 @@ export const Home: React.FC = () => {
                   />
                   <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 shadow-xl">
                     <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                    <span className="text-sm font-bold text-white">4.8</span>
+                    <span className="text-sm font-bold text-white">
+                      {salon.averageRating ? salon.averageRating.toFixed(1) : 'New'}
+                    </span>
+                    {salon.reviewCount && salon.reviewCount > 0 && (
+                      <span className="text-[10px] text-white/40 ml-1">({salon.reviewCount})</span>
+                    )}
                   </div>
                 </div>
                 <div className="p-6 space-y-4">

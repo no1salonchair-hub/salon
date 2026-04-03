@@ -7,8 +7,9 @@ import { Booking, Salon, Payment } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2 } from 'lucide-react';
+import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2, Star } from 'lucide-react';
 import { PushNotificationManager } from '../components/PushNotificationManager';
+import { ReviewModal } from '../components/ReviewModal';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -18,6 +19,7 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [reviewBooking, setReviewBooking] = useState<{ id: string; salonId: string } | null>(null);
 
   if (error) {
     throw error;
@@ -273,24 +275,32 @@ export const Dashboard: React.FC = () => {
                           {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
                         </p>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'accepted')}
-                          disabled={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date()}
-                          className={cn(
-                            "p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                            salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() && "bg-gray-600 hover:bg-gray-600"
-                          )}
-                          title={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? "Renew subscription to accept bookings" : "Accept Booking"}
-                        >
-                          <CheckCircle className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'rejected')}
-                          className="p-2 bg-red-600/20 text-red-500 rounded-xl hover:bg-red-600/30 transition-all"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </button>
+                      <div className="flex gap-2 items-center">
+                        {booking.dateTime.toDate() < new Date() ? (
+                          <span className="px-3 py-1 bg-white/5 text-white/20 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                            Expired
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => updateBookingStatus(booking.id, 'accepted')}
+                              disabled={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date()}
+                              className={cn(
+                                "p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                                salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() && "bg-gray-600 hover:bg-gray-600"
+                              )}
+                              title={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? "Renew subscription to accept bookings" : "Accept Booking"}
+                            >
+                              <CheckCircle className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => updateBookingStatus(booking.id, 'rejected')}
+                              className="p-2 bg-red-600/20 text-red-500 rounded-xl hover:bg-red-600/30 transition-all"
+                            >
+                              <XCircle className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -375,16 +385,26 @@ export const Dashboard: React.FC = () => {
                           <span className={cn(
                             "w-1.5 h-1.5 rounded-full",
                             booking.status === 'accepted' ? "bg-green-500" :
+                            booking.status === 'pending' && booking.dateTime.toDate() < new Date() ? "bg-gray-500" :
                             booking.status === 'pending' ? "bg-yellow-500" :
                             booking.status === 'completed' ? "bg-blue-500" : "bg-red-500"
                           )} />
-                          <span>{booking.status}</span>
+                          <span>{booking.status === 'pending' && booking.dateTime.toDate() < new Date() ? 'expired' : booking.status}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
+                    {booking.status === 'completed' && !booking.isRated && (
+                      <button
+                        onClick={() => setReviewBooking({ id: booking.id, salonId: booking.salonId })}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-600/10 text-yellow-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-yellow-600/20 transition-all border border-yellow-500/20"
+                      >
+                        <Star className="w-4 h-4 fill-yellow-500" />
+                        Rate Service
+                      </button>
+                    )}
                     {booking.status === 'completed' && (
                       <button
                         onClick={() => shareBookingOnWhatsApp(booking)}
@@ -414,6 +434,15 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {reviewBooking && (
+        <ReviewModal
+          bookingId={reviewBooking.id}
+          salonId={reviewBooking.salonId}
+          onClose={() => setReviewBooking(null)}
+          onSuccess={() => setReviewBooking(null)}
+        />
+      )}
     </div>
   );
 };

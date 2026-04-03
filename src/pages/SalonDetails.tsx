@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, Timestamp, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
-import { Salon, Service, Booking } from '../types';
-import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2, XCircle } from 'lucide-react';
+import { Salon, Service, Booking, Review } from '../types';
+import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2, XCircle, MessageSquare } from 'lucide-react';
 import { format, addHours, startOfHour } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ export const SalonDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
 
   if (error) {
     throw error;
@@ -79,6 +81,27 @@ export const SalonDetails: React.FC = () => {
     };
 
     fetchSalon();
+
+    // Fetch reviews
+    const q = query(
+      collection(db, 'reviews'),
+      where('salonId', '==', salonId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reviewData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Review[];
+      setReviews(reviewData);
+      setReviewsLoading(false);
+    }, (err) => {
+      console.error('SalonDetails: reviews onSnapshot error', err);
+      setReviewsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [salonId, navigate]);
 
   const isExpired = salon?.subscriptionExpiry ? salon.subscriptionExpiry.toDate() < new Date() : false;
@@ -182,7 +205,12 @@ export const SalonDetails: React.FC = () => {
                 </span>
                 <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-white">
                   <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                  <span className="text-sm font-bold">4.8</span>
+                  <span className="text-sm font-bold">
+                    {salon.averageRating ? salon.averageRating.toFixed(1) : 'New'}
+                  </span>
+                  {salon.reviewCount && salon.reviewCount > 0 && (
+                    <span className="text-[10px] text-white/40 ml-1">({salon.reviewCount})</span>
+                  )}
                 </div>
               </div>
               <h1 className="text-4xl font-black mb-2 text-white">{salon.name}</h1>
@@ -238,6 +266,58 @@ export const SalonDetails: React.FC = () => {
                 );
               })}
             </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
+              <MessageSquare className="text-purple-500" />
+              Customer Reviews
+              {reviews.length > 0 && (
+                <span className="text-sm font-normal text-white/40 ml-2">({reviews.length})</span>
+              )}
+            </h2>
+
+            {reviewsLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <div key={review.id} className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-3 shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-white">{review.userName}</p>
+                        <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mt-0.5">
+                          {format(review.createdAt.toDate(), 'MMM dd, yyyy')}
+                        </p>
+                      </div>
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={cn(
+                              "w-3 h-3",
+                              star <= review.rating ? "text-yellow-500 fill-yellow-500" : "text-white/10"
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-white/60 text-sm leading-relaxed italic">
+                      "{review.comment}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                <Star className="w-12 h-12 text-white/10 mx-auto mb-3" />
+                <p className="text-white/40 font-bold uppercase tracking-widest text-xs">No reviews yet</p>
+                <p className="text-white/20 text-xs mt-1">Be the first to rate this salon!</p>
+              </div>
+            )}
           </div>
         </div>
 

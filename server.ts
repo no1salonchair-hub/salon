@@ -45,8 +45,14 @@ const getRazorpay = (keyId: string, keySecret: string) => {
   }
   
   try {
-    // With createRequire, Razorpay is usually the constructor directly
-    return new Razorpay({
+    // Handle different import styles
+    const RazorpayConstructor = typeof Razorpay === 'function' ? Razorpay : Razorpay.default;
+    if (typeof RazorpayConstructor !== 'function') {
+      console.error("Razorpay is not a constructor:", Razorpay);
+      throw new Error("Razorpay SDK failed to load correctly.");
+    }
+    
+    return new RazorpayConstructor({
       key_id: keyId,
       key_secret: keySecret,
     });
@@ -225,34 +231,43 @@ async function startServer() {
         // Fallback to direct API call if SDK is broken
         console.log("Attempting direct API fallback...");
         const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-        const apiResponse = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${auth}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            type: "upi_qr",
-            name: (name || "Salon Chair").substring(0, 40),
-            usage: "single_payment",
-            fixed_amount: true,
-            payment_amount: Math.round(amount * 100),
-            description: (description || "Salon Subscription").substring(0, 40),
-            notes: { salonId }
-          })
-        });
+        
+        try {
+          const apiResponse = await fetch("https://api.razorpay.com/v1/payments/qr_codes", {
+            method: "POST",
+            headers: {
+              "Authorization": `Basic ${auth}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              type: "upi_qr",
+              name: (name || "Salon Chair").substring(0, 40),
+              usage: "single_payment",
+              fixed_amount: true,
+              payment_amount: Math.round(amount * 100),
+              description: (description || "Salon Subscription").substring(0, 40),
+              notes: { salonId }
+            })
+          });
 
-      const apiData: any = await apiResponse.json();
-      if (!apiResponse.ok) {
-        console.error("Razorpay Direct API Error Response:", JSON.stringify(apiData, null, 2));
-        return res.status(apiResponse.status).json({ 
-          error: "Razorpay API Error", 
-          details: apiData.error?.description || apiData.error?.reason || "Failed to create QR code via direct API",
-          raw: apiData
-        });
-      }
-        console.log("QR Code created via direct API:", apiData.id);
-        return res.json(apiData);
+          const apiData: any = await apiResponse.json();
+          if (!apiResponse.ok) {
+            console.error("Razorpay Direct API Error Response:", JSON.stringify(apiData, null, 2));
+            return res.status(apiResponse.status).json({ 
+              error: "Razorpay API Error", 
+              details: apiData.error?.description || apiData.error?.reason || "Failed to create QR code via direct API",
+              raw: apiData
+            });
+          }
+          console.log("QR Code created via direct API:", apiData.id);
+          return res.json(apiData);
+        } catch (fetchError: any) {
+          console.error("Direct API Fetch Error:", fetchError);
+          return res.status(500).json({ 
+            error: "Direct API Call Failed", 
+            details: fetchError.message || "Network error while calling Razorpay API directly" 
+          });
+        }
       }
 
       console.log("Calling rzp.qrCode.create with params...");
