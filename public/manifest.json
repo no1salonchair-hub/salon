@@ -8,15 +8,15 @@
   "theme_color": "#9333ea",
   "icons": [
     {
-      "src": "https://picsum.photos/seed/salon-icon/192/192",
+      "src": "/icon.svg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "https://picsum.photos/seed/salon-icon/512/512",
+      "src": "/icon.svg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]
