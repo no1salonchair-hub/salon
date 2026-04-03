@@ -158,7 +158,7 @@ export const Dashboard: React.FC = () => {
                     "text-xs",
                     salon.subscriptionExpiry.toDate() <= new Date() ? "text-red-400 font-bold" : "text-white/40"
                   )}>
-                    Expires: {format(salon.subscriptionExpiry.toDate(), 'MMM dd, yyyy')}
+                    Plan: {salon.subscriptionPlan === '12_months' ? '12 Months (Annual)' : '1 Month (Standard)'} • Expires: {format(salon.subscriptionExpiry.toDate(), 'MMM dd, yyyy')}
                   </span>
                 </div>
               </div>

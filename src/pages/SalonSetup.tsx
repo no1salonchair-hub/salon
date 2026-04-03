@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
-import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield } from 'lucide-react';
+import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield, Clock, Star } from 'lucide-react';
 import { Service, Salon } from '../types';
 import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
@@ -26,6 +26,7 @@ export const SalonSetup: React.FC = () => {
   const [selectedCity, setSelectedCity] = useState('');
   const [address, setAddress] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'1_month' | '12_months'>('1_month');
 
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
@@ -72,6 +73,9 @@ export const SalonSetup: React.FC = () => {
           setSelectedState(salonData.location.state || '');
           setSelectedCity(salonData.location.city || '');
           setAddress(salonData.location.address || '');
+          if (salonData.subscriptionPlan) {
+            setSubscriptionPlan(salonData.subscriptionPlan);
+          }
         }
       } catch (error) {
         console.error('SalonSetup: Error checking salon', error);
@@ -214,6 +218,7 @@ export const SalonSetup: React.FC = () => {
             address: address,
           },
           status: 'pending',
+          subscriptionPlan,
         };
         await updateDoc(doc(db, 'salons', salonId), updates);
         console.log('Salon document updated successfully.');
@@ -221,6 +226,12 @@ export const SalonSetup: React.FC = () => {
         // Create new salon
         console.log('Creating new salon document in Firestore...');
         const subscriptionExpiry = new Date();
+        if (subscriptionPlan === '1_month') {
+          subscriptionExpiry.setMonth(subscriptionExpiry.getMonth() + 1);
+        } else {
+          // 12 months plan
+          subscriptionExpiry.setFullYear(subscriptionExpiry.getFullYear() + 1);
+        }
 
         const salonData: Omit<Salon, 'id'> = {
           ownerId: profile.uid,
@@ -234,6 +245,7 @@ export const SalonSetup: React.FC = () => {
             address: address,
           },
           status: 'pending',
+          subscriptionPlan,
           subscriptionExpiry: Timestamp.fromDate(subscriptionExpiry),
           createdAt: Timestamp.now(),
         };
@@ -450,6 +462,66 @@ export const SalonSetup: React.FC = () => {
                     ? `Lat: ${typeof location.lat === 'number' ? location.lat.toFixed(4) : 'N/A'}, Lng: ${typeof location.lng === 'number' ? location.lng.toFixed(4) : 'N/A'}` 
                     : 'Please allow location access in your browser to proceed.'}
               </p>
+            </div>
+          </div>
+          
+          {/* Subscription Plans */}
+          <div className="space-y-6">
+            <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Choose Subscription Plan</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div 
+                onClick={() => setSubscriptionPlan('1_month')}
+                className={cn(
+                  "p-6 rounded-3xl border-2 cursor-pointer transition-all",
+                  subscriptionPlan === '1_month' 
+                    ? "bg-purple-600/20 border-purple-600 shadow-lg shadow-purple-600/10" 
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                )}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center text-purple-400">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  {subscriptionPlan === '1_month' && (
+                    <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full" />
+                    </div>
+                  )}
+                </div>
+                <h3 className="text-xl font-black text-white mb-1">1 Month</h3>
+                <p className="text-purple-400 font-black text-2xl mb-2">₹200</p>
+                <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Standard monthly plan</p>
+              </div>
+
+              <div 
+                onClick={() => setSubscriptionPlan('12_months')}
+                className={cn(
+                  "p-6 rounded-3xl border-2 cursor-pointer transition-all relative overflow-hidden",
+                  subscriptionPlan === '12_months' 
+                    ? "bg-blue-600/20 border-blue-600 shadow-lg shadow-blue-600/10" 
+                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                )}
+              >
+                <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-xl">
+                  Best Value
+                </div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center text-blue-400">
+                    <Star className="w-5 h-5" />
+                  </div>
+                  {subscriptionPlan === '12_months' && (
+                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full" />
+                    </div>
+                  )}
+                </div>
+                <h3 className="text-xl font-black text-white mb-1">12 Months</h3>
+                <p className="text-blue-400 font-black text-2xl mb-2">₹2000</p>
+                <div className="space-y-1">
+                  <p className="text-green-400 text-xs font-black uppercase tracking-widest">2 Months Free!</p>
+                  <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Annual savings plan</p>
+                </div>
+              </div>
             </div>
           </div>
 
