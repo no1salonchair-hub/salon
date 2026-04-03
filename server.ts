@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import cors from "cors";
 
 const require = createRequire(import.meta.url);
 const Razorpay = require("razorpay");
@@ -66,7 +67,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json());
+
+  // Logging Middleware
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
 
   // Health Check
   app.get("/api/health", (req, res) => {
@@ -328,6 +336,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log("Environment check:");
+    console.log("- RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
+    console.log("- RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "PRESENT" : "MISSING");
+    console.log("- VITE_RAZORPAY_KEY_ID:", process.env.VITE_RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
   });
 }
 

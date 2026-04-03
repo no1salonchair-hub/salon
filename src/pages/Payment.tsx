@@ -90,16 +90,24 @@ export const Payment: React.FC = () => {
       });
 
       const contentType = orderResponse.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
+      let order: any;
+      
+      if (contentType && contentType.includes("application/json")) {
+        order = await orderResponse.json();
+      } else {
         const text = await orderResponse.text();
         console.error('Non-JSON Order Response:', text);
-        throw new Error('Server returned an invalid response. Please check if your Razorpay keys are correctly configured in the Secrets panel.');
+        
+        // If it's a 500 error but not JSON, it's likely a server crash or proxy error
+        if (orderResponse.status === 500) {
+          throw new Error('Server encountered a critical error. Please check the server logs or ensure your Razorpay keys are correctly configured in the Secrets panel.');
+        } else {
+          throw new Error(`Server returned an unexpected response (${orderResponse.status}). This might be due to a network issue or server misconfiguration.`);
+        }
       }
 
-      const order = await orderResponse.json();
-
       if (!orderResponse.ok) {
-        throw new Error(order.details || order.error || 'Failed to create payment order');
+        throw new Error(order.details || order.error || `Failed to create payment order (${orderResponse.status})`);
       }
 
       // 2. Open Razorpay Checkout
@@ -127,16 +135,18 @@ export const Payment: React.FC = () => {
             });
 
             const verifyContentType = verifyResponse.headers.get("content-type");
-            if (!verifyContentType || !verifyContentType.includes("application/json")) {
+            let verifyData: any;
+            
+            if (verifyContentType && verifyContentType.includes("application/json")) {
+              verifyData = await verifyResponse.json();
+            } else {
               const text = await verifyResponse.text();
               console.error('Non-JSON Verify Response:', text);
-              throw new Error('Payment verification failed due to server error.');
+              throw new Error(`Payment verification failed with status ${verifyResponse.status}.`);
             }
 
-            const verifyData = await verifyResponse.json();
-
             if (!verifyResponse.ok) {
-              throw new Error(verifyData.details || verifyData.error || 'Payment verification failed');
+              throw new Error(verifyData.details || verifyData.error || `Payment verification failed (${verifyResponse.status})`);
             }
 
             // 4. Save Payment Record to Firestore
