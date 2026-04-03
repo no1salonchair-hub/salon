@@ -29,11 +29,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('AuthContext: Initializing auth listener...');
     let isMounted = true;
     
+    // Safety timeout to prevent infinite loading (e.g. if 3rd party cookies are blocked)
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(prev => {
+          if (prev) {
+            console.warn('AuthContext: Auth initialization timed out after 8s. Forcing loading to false.');
+            setError(new Error('Authentication is taking longer than expected. If you are using an incognito window or have third-party cookies blocked, please enable them for this site to work correctly.'));
+            return false;
+          }
+          return prev;
+        });
+      }
+    }, 8000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
       
       if (!isMounted) return;
       
+      clearTimeout(safetyTimeout);
       setUser(firebaseUser);
       
       if (!firebaseUser) {

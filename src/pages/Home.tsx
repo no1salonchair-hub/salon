@@ -129,6 +129,7 @@ export const Home: React.FC = () => {
           alt="Salon Hero"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           loading="eager"
+          fetchPriority="high"
           referrerPolicy="no-referrer"
           onError={(e) => {
             console.error('Hero image failed to load:', e);

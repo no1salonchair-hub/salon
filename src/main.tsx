@@ -34,6 +34,13 @@ try {
     throw new Error('Failed to find root element with id "root"');
   }
 
+  // Clear diagnostic loader if it exists
+  const diag = document.getElementById('loading-diagnostic');
+  if (diag) {
+    console.log('Main.tsx: Removing diagnostic loader');
+    // We don't remove it yet, let React handle it by replacing root content
+  }
+
   const root = createRoot(rootElement);
   
   console.log('Main.tsx: Rendering App...');
