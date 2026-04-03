@@ -89,12 +89,18 @@ export const Payment: React.FC = () => {
         }),
       });
 
-      if (!orderResponse.ok) {
-        const errorData = await orderResponse.json();
-        throw new Error(errorData.details || errorData.error || 'Failed to create payment order');
+      const contentType = orderResponse.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await orderResponse.text();
+        console.error('Non-JSON Order Response:', text);
+        throw new Error('Server returned an invalid response. Please check if your Razorpay keys are correctly configured in the Secrets panel.');
       }
 
       const order = await orderResponse.json();
+
+      if (!orderResponse.ok) {
+        throw new Error(order.details || order.error || 'Failed to create payment order');
+      }
 
       // 2. Open Razorpay Checkout
       const options = {
@@ -120,8 +126,17 @@ export const Payment: React.FC = () => {
               }),
             });
 
+            const verifyContentType = verifyResponse.headers.get("content-type");
+            if (!verifyContentType || !verifyContentType.includes("application/json")) {
+              const text = await verifyResponse.text();
+              console.error('Non-JSON Verify Response:', text);
+              throw new Error('Payment verification failed due to server error.');
+            }
+
+            const verifyData = await verifyResponse.json();
+
             if (!verifyResponse.ok) {
-              throw new Error('Payment verification failed');
+              throw new Error(verifyData.details || verifyData.error || 'Payment verification failed');
             }
 
             // 4. Save Payment Record to Firestore

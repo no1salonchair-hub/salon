@@ -68,6 +68,11 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Health Check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Get VAPID Public Key
   app.get("/api/notifications/vapid-key", (req, res) => {
     if (process.env.VAPID_PUBLIC_KEY) {
@@ -311,6 +316,15 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Global Error Handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Global Server Error:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      details: err.message || "An unexpected error occurred on the server." 
+    });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
