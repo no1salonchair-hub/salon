@@ -125,16 +125,16 @@ export const Home: React.FC = () => {
       {/* Hero Section */}
       <section className="relative h-[300px] rounded-3xl overflow-hidden group bg-zinc-900 border border-white/5 shadow-2xl">
         <img
-          src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1920"
+          src="/hero.webp"
           alt="Salon Hero"
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           loading="eager"
           fetchPriority="high"
           referrerPolicy="no-referrer"
           onError={(e) => {
-            console.error('Hero image failed to load:', e);
+            console.warn('Custom hero image (/hero.webp) not found, using fallback.');
             const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
+            target.src = "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1920";
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
