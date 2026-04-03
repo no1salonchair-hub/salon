@@ -57,10 +57,32 @@ try {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
           console.log('SW registered: ', registration);
+          
+          // Check for updates
+          registration.onupdatefound = () => {
+            const installingWorker = registration.installing;
+            if (installingWorker) {
+              installingWorker.onstatechange = () => {
+                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('New content is available; please refresh.');
+                  // Optionally: window.location.reload(); 
+                }
+              };
+            }
+          };
         })
         .catch(registrationError => {
           console.log('SW registration failed: ', registrationError);
         });
+    });
+
+    // Handle controller change (new SW taking over)
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
     });
   }
 } catch (error: any) {

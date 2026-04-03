@@ -22,6 +22,17 @@
     </div>
     <script>
       console.log('Index.html: Diagnostic script running');
+      
+      // Global PWA prompt capture
+      window.deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('Index.html: beforeinstallprompt captured');
+        e.preventDefault();
+        window.deferredPrompt = e;
+        // Notify the app that the prompt is available
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available'));
+      });
+
       window.addEventListener('error', function(e) {
         console.error('Index.html: Captured global error:', e.message);
         const diag = document.getElementById('loading-diagnostic');
