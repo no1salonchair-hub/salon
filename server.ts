@@ -27,30 +27,60 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   console.warn('Web-push keys are missing in environment variables.');
 }
 
-const firebaseConfig = require("./firebase-applet-config.json");
+const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+let firebaseConfig: any;
+try {
+  firebaseConfig = require(firebaseConfigPath);
+} catch (e) {
+  console.error("Failed to load firebase-applet-config.json:", e);
+  // Fallback to env variables if available, or empty object
+  firebaseConfig = {
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
+  };
+}
 
 // Initialize Firebase Admin
-if (getApps().length === 0) {
-  initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
+if (getApps().length === 0 && firebaseConfig.projectId) {
+  try {
+    initializeApp({
+      projectId: firebaseConfig.projectId,
+    });
+    console.log("Firebase Admin initialized with project:", firebaseConfig.projectId);
+  } catch (e) {
+    console.error("Firebase Admin initialization failed:", e);
+  }
 }
-const db = getFirestore(firebaseConfig.firestoreDatabaseId);
+const db = getFirestore(firebaseConfig.firestoreDatabaseId || "(default)");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const getRazorpay = (keyId: string, keySecret: string) => {
   if (!keyId || !keySecret) {
-    throw new Error("Razorpay Key ID or Key Secret is missing.");
+    throw new Error("Razorpay Key ID or Key Secret is missing in environment variables.");
   }
   
   try {
-    // Handle different import styles
-    const RazorpayConstructor = typeof Razorpay === 'function' ? Razorpay : Razorpay.default;
+    // Handle different import styles for Razorpay
+    let RazorpayConstructor;
+    if (typeof Razorpay === 'function') {
+      RazorpayConstructor = Razorpay;
+    } else if (Razorpay && typeof Razorpay.default === 'function') {
+      RazorpayConstructor = Razorpay.default;
+    } else {
+      // Try a direct require if the above failed
+      try {
+        const R = require("razorpay");
+        RazorpayConstructor = typeof R === 'function' ? R : R.default;
+      } catch (e) {
+        console.error("Nested Razorpay require failed:", e);
+      }
+    }
+
     if (typeof RazorpayConstructor !== 'function') {
-      console.error("Razorpay is not a constructor:", Razorpay);
-      throw new Error("Razorpay SDK failed to load correctly.");
+      console.error("Razorpay is not a constructor. Received:", typeof Razorpay);
+      throw new Error("Razorpay SDK failed to load correctly in this environment.");
     }
     
     return new RazorpayConstructor({
