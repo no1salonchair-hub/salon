@@ -41,17 +41,28 @@ try {
 }
 
 // Initialize Firebase Admin
-if (getApps().length === 0 && firebaseConfig.projectId) {
+if (getApps().length === 0) {
   try {
-    initializeApp({
-      projectId: firebaseConfig.projectId,
-    });
-    console.log("Firebase Admin initialized with project:", firebaseConfig.projectId);
+    if (firebaseConfig.projectId) {
+      initializeApp({
+        projectId: firebaseConfig.projectId,
+      });
+      console.log("Firebase Admin initialized with project:", firebaseConfig.projectId);
+    } else {
+      console.warn("No Firebase Project ID found. Firebase Admin might fail.");
+    }
   } catch (e) {
     console.error("Firebase Admin initialization failed:", e);
   }
 }
-const db = getFirestore(firebaseConfig.firestoreDatabaseId || "(default)");
+
+// Get Firestore instance safely
+let db: any;
+try {
+  db = getFirestore(firebaseConfig.firestoreDatabaseId || "(default)");
+} catch (e) {
+  console.error("Failed to get Firestore instance:", e);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,47 +154,56 @@ async function startServer() {
     }
   });
 
-  // Listen for new bookings to send notifications
-  db.collection("bookings").onSnapshot((snapshot: any) => {
-    snapshot.docChanges().forEach(async (change: any) => {
-      if (change.type === "added") {
-        const booking = change.doc.data();
-        const salonId = booking.salonId;
-        
-        console.log(`New booking detected for salon ${salonId}. Sending notification...`);
+  // Listen for new bookings to send notifications (ONLY in non-Vercel environments)
+  if (!process.env.VERCEL && db) {
+    try {
+      db.collection("bookings").onSnapshot((snapshot: any) => {
+        snapshot.docChanges().forEach(async (change: any) => {
+          if (change.type === "added") {
+            const booking = change.doc.data();
+            const salonId = booking.salonId;
+            
+            console.log(`New booking detected for salon ${salonId}. Sending notification...`);
 
-        try {
-          // 1. Find the salon owner
-          const salonDoc = await db.collection("salons").doc(salonId).get();
-          if (!salonDoc.exists) return;
-          
-          const salonData = salonDoc.data();
-          const ownerId = salonData.ownerId;
+            try {
+              // 1. Find the salon owner
+              const salonDoc = await db.collection("salons").doc(salonId).get();
+              if (!salonDoc.exists) return;
+              
+              const salonData = salonDoc.data();
+              const ownerId = salonData.ownerId;
 
-          // 2. Find the owner's push subscription
-          const subDoc = await db.collection("push_subscriptions").doc(ownerId).get();
-          if (!subDoc.exists) {
-            console.log(`No push subscription found for owner ${ownerId}`);
-            return;
+              // 2. Find the owner's push subscription
+              const subDoc = await db.collection("push_subscriptions").doc(ownerId).get();
+              if (!subDoc.exists) {
+                console.log(`No push subscription found for owner ${ownerId}`);
+                return;
+              }
+
+              const { subscription } = subDoc.data();
+
+              // 3. Send the notification
+              const payload = JSON.stringify({
+                title: "New Booking!",
+                body: `You have a new booking for ${booking.services.join(", ")}`,
+                url: `/booking/${change.doc.id}`
+              });
+
+              await webpush.sendNotification(subscription, payload);
+              console.log(`Push notification sent to owner ${ownerId}`);
+            } catch (error) {
+              console.error("Error sending push notification:", error);
+            }
           }
-
-          const { subscription } = subDoc.data();
-
-          // 3. Send the notification
-          const payload = JSON.stringify({
-            title: "New Booking!",
-            body: `You have a new booking for ${booking.services.join(", ")}`,
-            url: `/booking/${change.doc.id}`
-          });
-
-          await webpush.sendNotification(subscription, payload);
-          console.log(`Push notification sent to owner ${ownerId}`);
-        } catch (error) {
-          console.error("Error sending push notification:", error);
-        }
-      }
-    });
-  });
+        });
+      });
+      console.log("Bookings listener started (Non-Vercel environment).");
+    } catch (e) {
+      console.error("Failed to start bookings listener:", e);
+    }
+  } else {
+    console.log("Skipping persistent bookings listener (Vercel environment).");
+  }
 
   // Razorpay Order Creation
   app.post("/api/payment/order", async (req, res) => {
