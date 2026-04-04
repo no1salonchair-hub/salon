@@ -6,7 +6,8 @@ import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import cors from "cors";
-import Razorpay from "razorpay";
+import * as RazorpayModule from "razorpay";
+const Razorpay = (RazorpayModule as any).default || RazorpayModule;
 import webpush from "web-push";
 import { initializeApp, getApps, getApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
@@ -83,10 +84,21 @@ const getRazorpay = (keyId: string, keySecret: string) => {
   
   try {
     // Razorpay 2.x supports ESM default import or CJS require
-    const RazorpayConstructor = (Razorpay as any).default || Razorpay;
+    // We handle various import styles for maximum compatibility
+    let RazorpayConstructor: any;
+    
+    if (typeof Razorpay === 'function') {
+      RazorpayConstructor = Razorpay;
+    } else if (Razorpay && typeof (Razorpay as any).default === 'function') {
+      RazorpayConstructor = (Razorpay as any).default;
+    } else {
+      // Fallback for some environments
+      RazorpayConstructor = Razorpay;
+    }
     
     if (typeof RazorpayConstructor !== 'function') {
-      throw new Error("Razorpay SDK failed to load correctly. Please check your dependencies.");
+      console.error("Razorpay SDK structure:", JSON.stringify(Razorpay));
+      throw new Error("Razorpay SDK failed to load correctly. Constructor is not a function.");
     }
     
     return new RazorpayConstructor({
@@ -123,11 +135,17 @@ export async function createApp() {
 
   // Health Check
   app.get("/api/health", (req, res) => {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    
     res.json({ 
       status: "ok", 
       env: process.env.VERCEL ? "vercel" : "local",
-      hasRazorpayKeys: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
-      hasVapidKeys: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
+      hasRazorpayKeys: !!(keyId && keySecret),
+      keyIdPrefix: keyId ? keyId.substring(0, 8) + "..." : null,
+      hasVapidKeys: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+      nodeEnv: process.env.NODE_ENV,
+      isServerless: !!(process.env.VERCEL || process.env.K_SERVICE || process.env.GAE_SERVICE)
     });
   });
 
@@ -220,16 +238,21 @@ export async function createApp() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  const isServerless = !!(process.env.VERCEL || process.env.K_SERVICE || process.env.GAE_SERVICE);
+  
+  if (process.env.NODE_ENV !== "production" && !isServerless) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
+  } else {
+    // In production or serverless, serve static files from dist
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    }
   }
 
   // Global Error Handler to ensure JSON response
