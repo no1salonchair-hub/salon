@@ -1,16 +1,10 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import cors from "cors";
-import * as RazorpayModule from "razorpay";
-const Razorpay = (RazorpayModule as any).default || RazorpayModule;
-import webpush from "web-push";
-import { initializeApp, getApps, getApp } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 dotenv.config();
 
@@ -20,12 +14,38 @@ const __dirname = path.dirname(__filename);
 // Lazy initialization helpers
 let _db: any = null;
 let _firebaseApp: any = null;
+let _app: any = null;
+let _Razorpay: any = null;
+let _firebaseAdmin: any = null;
 
-function getFirebaseApp() {
+async function getFirebaseAdmin() {
+  if (_firebaseAdmin) return _firebaseAdmin;
+  const [app, firestore] = await Promise.all([
+    import("firebase-admin/app"),
+    import("firebase-admin/firestore")
+  ]);
+  _firebaseAdmin = { ...app, ...firestore };
+  return _firebaseAdmin;
+}
+
+async function getRazorpayLib() {
+  if (_Razorpay) return _Razorpay;
+  try {
+    const rzpModule = await import("razorpay");
+    _Razorpay = rzpModule.default || rzpModule;
+    return _Razorpay;
+  } catch (e) {
+    console.error("Failed to load Razorpay library:", e);
+    return null;
+  }
+}
+
+async function getFirebaseApp() {
   if (_firebaseApp) return _firebaseApp;
   
-  if (getApps().length > 0) {
-    _firebaseApp = getApp();
+  const admin = await getFirebaseAdmin();
+  if (admin.getApps().length > 0) {
+    _firebaseApp = admin.getApp();
     return _firebaseApp;
   }
 
@@ -46,7 +66,7 @@ function getFirebaseApp() {
 
   if (firebaseConfig.projectId) {
     try {
-      _firebaseApp = initializeApp({
+      _firebaseApp = admin.initializeApp({
         projectId: firebaseConfig.projectId,
       });
       return _firebaseApp;
@@ -59,10 +79,11 @@ function getFirebaseApp() {
   throw new Error("Firebase Project ID is missing. Please check your configuration.");
 }
 
-function getDb() {
+async function getDb() {
   if (_db) return _db;
   
-  const app = getFirebaseApp();
+  const app = await getFirebaseApp();
+  const admin = await getFirebaseAdmin();
   let firestoreDatabaseId = "(default)";
   
   try {
@@ -73,77 +94,40 @@ function getDb() {
     }
   } catch (e) {}
 
-  _db = getFirestore(app, firestoreDatabaseId);
+  _db = admin.getFirestore(app, firestoreDatabaseId);
   return _db;
 }
 
-const getRazorpay = (keyId: string, keySecret: string) => {
-  if (!keyId || !keySecret) {
-    throw new Error("Razorpay Key ID or Key Secret is missing in environment variables.");
-  }
-  
+const getRazorpayInstance = async (keyId: string, keySecret: string) => {
+  if (!keyId || !keySecret) throw new Error("Razorpay Key ID or Key Secret is missing.");
   try {
-    // Razorpay 2.x supports ESM default import or CJS require
-    // We handle various import styles for maximum compatibility
-    let RazorpayConstructor: any;
-    
-    if (typeof Razorpay === 'function') {
-      RazorpayConstructor = Razorpay;
-    } else if (Razorpay && typeof (Razorpay as any).default === 'function') {
-      RazorpayConstructor = (Razorpay as any).default;
-    } else {
-      // Fallback for some environments
-      RazorpayConstructor = Razorpay;
+    const RzpConstructor = await getRazorpayLib();
+    if (!RzpConstructor || typeof RzpConstructor !== 'function') {
+      console.warn("Razorpay library not available or invalid, will use direct API fallback.");
+      return null;
     }
-    
-    if (typeof RazorpayConstructor !== 'function') {
-      console.error("Razorpay SDK structure:", JSON.stringify(Razorpay));
-      throw new Error("Razorpay SDK failed to load correctly. Constructor is not a function.");
-    }
-    
-    return new RazorpayConstructor({
-      key_id: keyId,
-      key_secret: keySecret,
-    });
+    return new RzpConstructor({ key_id: keyId, key_secret: keySecret });
   } catch (error: any) {
-    console.error("Error creating Razorpay instance:", error);
-    throw error;
+    console.error("Razorpay Init Error:", error);
+    return null;
   }
 };
 
 export async function createApp() {
+  if (_app) return _app;
+
   const app = express();
   app.use(cors());
   app.use(express.json());
 
-  // Configure web-push lazily
-  const setupWebPush = () => {
-    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-      try {
-        webpush.setVapidDetails(
-          'mailto:no1salonchair@gmail.com',
-          process.env.VAPID_PUBLIC_KEY,
-          process.env.VAPID_PRIVATE_KEY
-        );
-        return true;
-      } catch (e) {
-        console.error("Web-push configuration failed:", e);
-      }
-    }
-    return false;
-  };
-
   // Health Check
   app.get("/api/health", (req, res) => {
     const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    
     res.json({ 
       status: "ok", 
       env: process.env.VERCEL ? "vercel" : "local",
-      hasRazorpayKeys: !!(keyId && keySecret),
+      hasRazorpayKeys: !!(keyId && process.env.RAZORPAY_KEY_SECRET),
       keyIdPrefix: keyId ? keyId.substring(0, 8) + "..." : null,
-      hasVapidKeys: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
       nodeEnv: process.env.NODE_ENV,
       isServerless: !!(process.env.VERCEL || process.env.K_SERVICE || process.env.GAE_SERVICE)
     });
@@ -162,10 +146,11 @@ export async function createApp() {
       const { subscription, userId } = req.body;
       if (!subscription || !userId) return res.status(400).json({ error: "Missing subscription or userId" });
       
-      const db = getDb();
+      const db = await getDb();
+      const admin = await getFirebaseAdmin();
       await db.collection("push_subscriptions").doc(userId).set({
         subscription,
-        updatedAt: Timestamp.now()
+        updatedAt: admin.Timestamp.now()
       });
       res.json({ status: "ok" });
     } catch (error: any) {
@@ -175,45 +160,85 @@ export async function createApp() {
   });
 
   app.post("/api/payment/order", async (req, res) => {
+    console.log("Order Request Received:", JSON.stringify(req.body));
     try {
-      const { amount, currency = "INR", receipt } = req.body;
+      const { amount, currency = "INR", receipt, salonId, planId } = req.body;
       const keyId = process.env.RAZORPAY_KEY_ID;
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
       
       if (!keyId || !keySecret) {
-        return res.status(500).json({ 
-          error: "Razorpay keys are missing", 
-          details: "Ensure RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are set in the Secrets panel." 
-        });
+        return res.status(500).json({ error: "Razorpay keys are missing" });
       }
 
-      const rzp = getRazorpay(keyId, keySecret);
       const options = {
-        amount: Math.round(amount * 100),
+        amount: Math.round(Number(amount) * 100),
         currency,
-        receipt,
-        notes: { salonId: req.body.salonId, planId: req.body.planId }
+        receipt: String(receipt || `rcpt_${Date.now()}`).substring(0, 40),
+        notes: { salonId: String(salonId || ""), planId: String(planId || "") }
       };
-      const order = await rzp.orders.create(options);
-      res.json(order);
+      
+      console.log("Attempting to create order...");
+      try {
+        const rzp = await getRazorpayInstance(keyId, keySecret);
+        if (rzp) {
+          console.log("Creating order via library...");
+          const order = await rzp.orders.create(options);
+          console.log("Order created via library:", order.id);
+          return res.json(order);
+        } else {
+          throw new Error("Library unavailable");
+        }
+      } catch (libError: any) {
+        console.log("Using direct API fallback:", libError.message);
+        
+        const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+        const response = await fetch('https://api.razorpay.com/v1/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${auth}`
+          },
+          body: JSON.stringify(options)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Razorpay API Error Response:", JSON.stringify(errorData));
+          throw new Error(errorData.error?.description || `Razorpay API error: ${response.status}`);
+        }
+
+        const order = await response.json();
+        console.log("Order created via direct API:", order.id);
+        return res.json(order);
+      }
     } catch (error: any) {
-      console.error("Payment Order Error:", error);
-      res.status(500).json({ error: "Failed to create order", details: error.message });
+      console.error("Final Payment Order Error:", error);
+      res.status(500).json({ 
+        error: "Failed to create order", 
+        details: error.message || "Unknown error"
+      });
     }
   });
 
   app.post("/api/payment/verify", async (req, res) => {
     try {
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature, salonId, planId } = req.body;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      
+      if (!keySecret) {
+        return res.status(500).json({ error: "Razorpay secret missing for verification" });
+      }
+
       const sign = razorpay_order_id + "|" + razorpay_payment_id;
       const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+        .createHmac("sha256", keySecret)
         .update(sign.toString())
         .digest("hex");
 
       if (razorpay_signature === expectedSign) {
         if (salonId && planId) {
-          const db = getDb();
+          const db = await getDb();
+          const admin = await getFirebaseAdmin();
           const salonRef = db.collection("salons").doc(salonId);
           const now = new Date();
           let durationDays = planId === 'yearly' ? 365 : 30;
@@ -221,10 +246,10 @@ export async function createApp() {
 
           await salonRef.update({
             status: "active",
-            subscriptionExpiry: Timestamp.fromDate(expiry),
+            subscriptionExpiry: admin.Timestamp.fromDate(expiry),
             subscriptionPlan: planId,
             lastPaymentId: razorpay_payment_id,
-            updatedAt: Timestamp.now()
+            updatedAt: admin.Timestamp.now()
           });
         }
         res.json({ status: "ok" });
@@ -237,17 +262,12 @@ export async function createApp() {
     }
   });
 
-  // Vite middleware for development
+  // Vite middleware for development (disabled in serverless)
   const isServerless = !!(process.env.VERCEL || process.env.K_SERVICE || process.env.GAE_SERVICE);
   
   if (process.env.NODE_ENV !== "production" && !isServerless) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    // Vite is handled in server.ts for local dev
   } else {
-    // In production or serverless, serve static files from dist
     const distPath = path.join(process.cwd(), "dist");
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
@@ -255,15 +275,12 @@ export async function createApp() {
     }
   }
 
-  // Global Error Handler to ensure JSON response
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Global API Error:", err);
     if (!res.headersSent) {
-      res.setHeader('Content-Type', 'application/json');
       res.status(500).json({ 
         error: "Internal Server Error", 
-        details: err.message || String(err),
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        details: err.message || String(err)
       });
     }
   });
