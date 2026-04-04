@@ -2,59 +2,66 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createRequire } from "module";
+import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import cors from "cors";
-
-const require = createRequire(import.meta.url);
-const Razorpay = require("razorpay");
-const webpush = require("web-push");
-const { initializeApp, getApps } = require("firebase-admin/app");
-const { getFirestore, Timestamp } = require("firebase-admin/firestore");
+import Razorpay from "razorpay";
+import webpush from "web-push";
+import { initializeApp, getApps, getApp } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 dotenv.config();
 
 // Configure web-push
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:no1salonchair@gmail.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
+  try {
+    webpush.setVapidDetails(
+      'mailto:no1salonchair@gmail.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+  } catch (e) {
+    console.error("Web-push configuration failed:", e);
+  }
 }
 
-const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-let firebaseConfig: any;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load Firebase Config robustly
+let firebaseConfig: any = {};
 try {
-  firebaseConfig = require(firebaseConfigPath);
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } else {
+    firebaseConfig = {
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
+    };
+  }
 } catch (e) {
-  firebaseConfig = {
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
-  };
+  console.error("Error loading firebase config:", e);
 }
 
 // Initialize Firebase Admin
+let firebaseApp: any;
 if (getApps().length === 0) {
   try {
     if (firebaseConfig.projectId) {
-      initializeApp({
+      firebaseApp = initializeApp({
         projectId: firebaseConfig.projectId,
       });
     }
   } catch (e) {
     console.error("Firebase Admin initialization failed:", e);
   }
+} else {
+  firebaseApp = getApp();
 }
 
-// Get Firestore instance safely
-let db: any;
-try {
-  db = getFirestore(firebaseConfig.firestoreDatabaseId || "(default)");
-} catch (e) {
-  console.error("Failed to get Firestore instance:", e);
-}
+const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || "(default)");
 
 const getRazorpay = (keyId: string, keySecret: string) => {
   if (!keyId || !keySecret) {
@@ -62,20 +69,11 @@ const getRazorpay = (keyId: string, keySecret: string) => {
   }
   
   try {
-    let RazorpayConstructor;
-    if (typeof Razorpay === 'function') {
-      RazorpayConstructor = Razorpay;
-    } else if (Razorpay && typeof Razorpay.default === 'function') {
-      RazorpayConstructor = Razorpay.default;
-    } else {
-      try {
-        const R = require("razorpay");
-        RazorpayConstructor = typeof R === 'function' ? R : R.default;
-      } catch (e) {}
-    }
-
+    // Razorpay 2.x supports ESM default import or CJS require
+    const RazorpayConstructor = (Razorpay as any).default || Razorpay;
+    
     if (typeof RazorpayConstructor !== 'function') {
-      throw new Error("Razorpay SDK failed to load correctly in this environment.");
+      throw new Error("Razorpay SDK failed to load correctly. Please check your dependencies.");
     }
     
     return new RazorpayConstructor({
@@ -93,9 +91,13 @@ export async function createApp() {
   app.use(cors());
   app.use(express.json());
 
-  // API Routes
+  // Health Check
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", env: process.env.VERCEL ? "vercel" : "local" });
+    res.json({ 
+      status: "ok", 
+      env: process.env.VERCEL ? "vercel" : "local",
+      hasRazorpayKeys: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+    });
   });
 
   app.get("/api/notifications/vapid-key", (req, res) => {
@@ -115,8 +117,8 @@ export async function createApp() {
         updatedAt: Timestamp.now()
       });
       res.json({ status: "ok" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to save subscription" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save subscription", details: error.message });
     }
   });
 
@@ -127,7 +129,10 @@ export async function createApp() {
       const keySecret = process.env.RAZORPAY_KEY_SECRET;
       
       if (!keyId || !keySecret) {
-        return res.status(500).json({ error: "Razorpay keys are missing" });
+        return res.status(500).json({ 
+          error: "Razorpay keys are missing", 
+          details: "Ensure RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are set in the Secrets panel." 
+        });
       }
 
       const rzp = getRazorpay(keyId, keySecret);
@@ -140,6 +145,7 @@ export async function createApp() {
       const order = await rzp.orders.create(options);
       res.json(order);
     } catch (error: any) {
+      console.error("Payment Order Error:", error);
       res.status(500).json({ error: "Failed to create order", details: error.message });
     }
   });
@@ -172,8 +178,9 @@ export async function createApp() {
       } else {
         res.status(400).json({ error: "Invalid signature" });
       }
-    } catch (error) {
-      res.status(500).json({ error: "Verification failed" });
+    } catch (error: any) {
+      console.error("Payment Verification Error:", error);
+      res.status(500).json({ error: "Verification failed", details: error.message });
     }
   });
 
@@ -190,11 +197,25 @@ export async function createApp() {
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
+  // Global Error Handler to ensure JSON response
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Global API Error:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      details: err.message || "An unexpected error occurred." 
+    });
+  });
+
   return app;
 }
 
 // Vercel Serverless Function Export
 export default async (req: any, res: any) => {
-  const app = await createApp();
-  return app(req, res);
+  try {
+    const app = await createApp();
+    return app(req, res);
+  } catch (error: any) {
+    console.error("Vercel Function Crash:", error);
+    res.status(500).json({ error: "Function Crash", details: error.message });
+  }
 };
