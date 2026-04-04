@@ -16,16 +16,16 @@ let _db: any = null;
 let _firebaseApp: any = null;
 let _app: any = null;
 let _Razorpay: any = null;
-let _firebaseAdmin: any = null;
+let _firebaseClient: any = null;
 
-async function getFirebaseAdmin() {
-  if (_firebaseAdmin) return _firebaseAdmin;
+async function getFirebaseClient() {
+  if (_firebaseClient) return _firebaseClient;
   const [app, firestore] = await Promise.all([
-    import("firebase-admin/app"),
-    import("firebase-admin/firestore")
+    import("firebase/app"),
+    import("firebase/firestore")
   ]);
-  _firebaseAdmin = { ...app, ...firestore };
-  return _firebaseAdmin;
+  _firebaseClient = { ...app, ...firestore };
+  return _firebaseClient;
 }
 
 async function getRazorpayLib() {
@@ -43,9 +43,9 @@ async function getRazorpayLib() {
 async function getFirebaseApp() {
   if (_firebaseApp) return _firebaseApp;
   
-  const admin = await getFirebaseAdmin();
-  if (admin.getApps().length > 0) {
-    _firebaseApp = admin.getApp();
+  const client = await getFirebaseClient();
+  if (client.getApps().length > 0) {
+    _firebaseApp = client.getApp();
     return _firebaseApp;
   }
 
@@ -56,7 +56,12 @@ async function getFirebaseApp() {
       firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     } else {
       firebaseConfig = {
+        apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
         projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
         firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
       };
     }
@@ -66,24 +71,22 @@ async function getFirebaseApp() {
 
   if (firebaseConfig.projectId) {
     try {
-      _firebaseApp = admin.initializeApp({
-        projectId: firebaseConfig.projectId,
-      });
+      _firebaseApp = client.initializeApp(firebaseConfig);
       return _firebaseApp;
     } catch (e) {
-      console.error("Firebase Admin initialization failed:", e);
+      console.error("Firebase initialization failed:", e);
       throw e;
     }
   }
   
-  throw new Error("Firebase Project ID is missing. Please check your configuration.");
+  throw new Error("Firebase configuration is missing.");
 }
 
 async function getDb() {
   if (_db) return _db;
   
   const app = await getFirebaseApp();
-  const admin = await getFirebaseAdmin();
+  const client = await getFirebaseClient();
   let firestoreDatabaseId = "(default)";
   
   try {
@@ -94,7 +97,7 @@ async function getDb() {
     }
   } catch (e) {}
 
-  _db = admin.getFirestore(app, firestoreDatabaseId);
+  _db = client.getFirestore(app, firestoreDatabaseId);
   return _db;
 }
 
@@ -147,10 +150,12 @@ export async function createApp() {
       if (!subscription || !userId) return res.status(400).json({ error: "Missing subscription or userId" });
       
       const db = await getDb();
-      const admin = await getFirebaseAdmin();
-      await db.collection("push_subscriptions").doc(userId).set({
+      const client = await getFirebaseClient();
+      const subRef = client.doc(db, "push_subscriptions", userId);
+      
+      await client.setDoc(subRef, {
         subscription,
-        updatedAt: admin.Timestamp.now()
+        updatedAt: client.Timestamp.now()
       });
       res.json({ status: "ok" });
     } catch (error: any) {
@@ -238,18 +243,18 @@ export async function createApp() {
       if (razorpay_signature === expectedSign) {
         if (salonId && planId) {
           const db = await getDb();
-          const admin = await getFirebaseAdmin();
-          const salonRef = db.collection("salons").doc(salonId);
+          const client = await getFirebaseClient();
+          const salonRef = client.doc(db, "salons", salonId);
           const now = new Date();
           let durationDays = planId === 'yearly' ? 365 : 30;
           const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-          await salonRef.update({
+          await client.updateDoc(salonRef, {
             status: "active",
-            subscriptionExpiry: admin.Timestamp.fromDate(expiry),
+            subscriptionExpiry: client.Timestamp.fromDate(expiry),
             subscriptionPlan: planId,
             lastPaymentId: razorpay_payment_id,
-            updatedAt: admin.Timestamp.now()
+            updatedAt: client.Timestamp.now()
           });
         }
         res.json({ status: "ok" });

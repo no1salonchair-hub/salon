@@ -115,6 +115,25 @@ export const Payment: React.FC = () => {
         name: 'Salon Chair',
         description: `${currentPlan.name} for ${salon.name}`,
         order_id: order.id,
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'Pay via UPI QR',
+                instruments: [
+                  {
+                    method: 'upi',
+                    apps: ['qr']
+                  }
+                ]
+              }
+            },
+            sequence: ['block.upi'],
+            preferences: {
+              show_default_blocks: false
+            }
+          }
+        },
         handler: async (response: any) => {
           try {
             setPaymentLoading(true);
