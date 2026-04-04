@@ -13,55 +13,68 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 dotenv.config();
 
-// Configure web-push
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  try {
-    webpush.setVapidDetails(
-      'mailto:no1salonchair@gmail.com',
-      process.env.VAPID_PUBLIC_KEY,
-      process.env.VAPID_PRIVATE_KEY
-    );
-  } catch (e) {
-    console.error("Web-push configuration failed:", e);
-  }
-}
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load Firebase Config robustly
-let firebaseConfig: any = {};
-try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } else {
-    firebaseConfig = {
-      projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-      firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
-    };
-  }
-} catch (e) {
-  console.error("Error loading firebase config:", e);
-}
+// Lazy initialization helpers
+let _db: any = null;
+let _firebaseApp: any = null;
 
-// Initialize Firebase Admin
-let firebaseApp: any;
-if (getApps().length === 0) {
+function getFirebaseApp() {
+  if (_firebaseApp) return _firebaseApp;
+  
+  if (getApps().length > 0) {
+    _firebaseApp = getApp();
+    return _firebaseApp;
+  }
+
+  let firebaseConfig: any = {};
   try {
-    if (firebaseConfig.projectId) {
-      firebaseApp = initializeApp({
-        projectId: firebaseConfig.projectId,
-      });
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } else {
+      firebaseConfig = {
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)"
+      };
     }
   } catch (e) {
-    console.error("Firebase Admin initialization failed:", e);
+    console.error("Error loading firebase config:", e);
   }
-} else {
-  firebaseApp = getApp();
+
+  if (firebaseConfig.projectId) {
+    try {
+      _firebaseApp = initializeApp({
+        projectId: firebaseConfig.projectId,
+      });
+      return _firebaseApp;
+    } catch (e) {
+      console.error("Firebase Admin initialization failed:", e);
+      throw e;
+    }
+  }
+  
+  throw new Error("Firebase Project ID is missing. Please check your configuration.");
 }
 
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId || "(default)");
+function getDb() {
+  if (_db) return _db;
+  
+  const app = getFirebaseApp();
+  let firestoreDatabaseId = "(default)";
+  
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      firestoreDatabaseId = config.firestoreDatabaseId || "(default)";
+    }
+  } catch (e) {}
+
+  _db = getFirestore(app, firestoreDatabaseId);
+  return _db;
+}
 
 const getRazorpay = (keyId: string, keySecret: string) => {
   if (!keyId || !keySecret) {
@@ -91,12 +104,30 @@ export async function createApp() {
   app.use(cors());
   app.use(express.json());
 
+  // Configure web-push lazily
+  const setupWebPush = () => {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      try {
+        webpush.setVapidDetails(
+          'mailto:no1salonchair@gmail.com',
+          process.env.VAPID_PUBLIC_KEY,
+          process.env.VAPID_PRIVATE_KEY
+        );
+        return true;
+      } catch (e) {
+        console.error("Web-push configuration failed:", e);
+      }
+    }
+    return false;
+  };
+
   // Health Check
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       env: process.env.VERCEL ? "vercel" : "local",
-      hasRazorpayKeys: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+      hasRazorpayKeys: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+      hasVapidKeys: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
     });
   });
 
@@ -112,12 +143,15 @@ export async function createApp() {
     try {
       const { subscription, userId } = req.body;
       if (!subscription || !userId) return res.status(400).json({ error: "Missing subscription or userId" });
+      
+      const db = getDb();
       await db.collection("push_subscriptions").doc(userId).set({
         subscription,
         updatedAt: Timestamp.now()
       });
       res.json({ status: "ok" });
     } catch (error: any) {
+      console.error("Subscribe Error:", error);
       res.status(500).json({ error: "Failed to save subscription", details: error.message });
     }
   });
@@ -161,6 +195,7 @@ export async function createApp() {
 
       if (razorpay_signature === expectedSign) {
         if (salonId && planId) {
+          const db = getDb();
           const salonRef = db.collection("salons").doc(salonId);
           const now = new Date();
           let durationDays = planId === 'yearly' ? 365 : 30;
@@ -216,6 +251,8 @@ export default async (req: any, res: any) => {
     return app(req, res);
   } catch (error: any) {
     console.error("Vercel Function Crash:", error);
-    res.status(500).json({ error: "Function Crash", details: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Function Crash", details: error.message });
+    }
   }
 };
