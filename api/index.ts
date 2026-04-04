@@ -235,10 +235,14 @@ export async function createApp() {
   // Global Error Handler to ensure JSON response
   app.use((err: any, req: any, res: any, next: any) => {
     console.error("Global API Error:", err);
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      details: err.message || "An unexpected error occurred." 
-    });
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).json({ 
+        error: "Internal Server Error", 
+        details: err.message || String(err),
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      });
+    }
   });
 
   return app;

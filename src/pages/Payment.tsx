@@ -98,12 +98,9 @@ export const Payment: React.FC = () => {
         const text = await orderResponse.text();
         console.error('Non-JSON Order Response:', text);
         
-        // If it's a 500 error but not JSON, it's likely a server crash or proxy error
-        if (orderResponse.status === 500) {
-          throw new Error('Server encountered a critical error. Please check the server logs or ensure your Razorpay keys are correctly configured in the Secrets panel.');
-        } else {
-          throw new Error(`Server returned an unexpected response (${orderResponse.status}). This might be due to a network issue or server misconfiguration.`);
-        }
+        // Try to extract error from HTML if possible (common in platform errors)
+        const errorMessage = text.length < 500 ? text : 'The server returned a non-JSON response (likely a crash or timeout).';
+        throw new Error(`Server Error: ${errorMessage}\n\nPlease check your Razorpay keys in Settings > Secrets.`);
       }
 
       if (!orderResponse.ok) {
