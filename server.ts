@@ -334,13 +334,27 @@ async function startServer() {
     });
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log("Environment check:");
-    console.log("- RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
-    console.log("- RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "PRESENT" : "MISSING");
-    console.log("- VITE_RAZORPAY_KEY_ID:", process.env.VITE_RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
+  // Export app for Vercel
+  return app;
+}
+
+export const appPromise = startServer();
+
+// Start server only if not running as a serverless function (e.g., on Vercel)
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  appPromise.then(app => {
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log("Environment check:");
+      console.log("- RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
+      console.log("- RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "PRESENT" : "MISSING");
+      console.log("- VITE_RAZORPAY_KEY_ID:", process.env.VITE_RAZORPAY_KEY_ID ? "PRESENT" : "MISSING");
+    });
   });
 }
 
-startServer();
+export default async (req: any, res: any) => {
+  const app = await appPromise;
+  return app(req, res);
+};
