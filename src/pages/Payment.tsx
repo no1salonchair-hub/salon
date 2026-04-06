@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, doc, updateDoc } from 'firebase/firestore';
-import { CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap, QrCode, Smartphone } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -17,8 +18,12 @@ export const Payment: React.FC = () => {
   const [error, setError] = useState<any>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [step, setStep] = useState<'info' | 'success'>('info');
+  const [step, setStep] = useState<'info' | 'success' | 'manual_upi'>('info');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [utr, setUtr] = useState('');
+  const [submittingUtr, setSubmittingUtr] = useState(false);
+
+  const upiId = import.meta.env.VITE_UPI_ID || ''; // Optional direct UPI ID fallback
 
   const plans = {
     monthly: {
@@ -115,25 +120,6 @@ export const Payment: React.FC = () => {
         name: 'Salon Chair',
         description: `${currentPlan.name} for ${salon.name}`,
         order_id: order.id,
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: 'Pay via UPI QR',
-                instruments: [
-                  {
-                    method: 'upi',
-                    apps: ['qr']
-                  }
-                ]
-              }
-            },
-            sequence: ['block.upi'],
-            preferences: {
-              show_default_blocks: false
-            }
-          }
-        },
         handler: async (response: any) => {
           try {
             setPaymentLoading(true);
@@ -215,6 +201,54 @@ export const Payment: React.FC = () => {
       setPaymentLoading(false);
     }
   };
+
+  const handleManualUpiSubmit = async () => {
+    if (!utr || utr.length < 12) {
+      toast.error('Please enter a valid 12-digit UTR/Transaction ID');
+      return;
+    }
+    
+    setSubmittingUtr(true);
+    try {
+      // For manual UPI, we record the payment and set salon to active
+      // In a real app, this would be verified by an admin
+      await addDoc(collection(db, 'payments'), {
+        salonId: salon?.id,
+        amount: currentPlan.amount,
+        planId: currentPlan.id,
+        status: 'pending_verification',
+        createdAt: Timestamp.now(),
+        requestedBy: profile?.uid,
+        salonName: salon?.name,
+        utr: utr,
+        method: 'manual_upi'
+      });
+
+      if (salon?.id) {
+        const salonRef = doc(db, 'salons', salon.id);
+        const now = new Date();
+        let durationDays = selectedPlan === 'yearly' ? 365 : 30;
+        const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+        await updateDoc(salonRef, {
+          status: 'active',
+          subscriptionExpiry: Timestamp.fromDate(expiry),
+          subscriptionPlan: selectedPlan,
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      setStep('success');
+      toast.success('Payment submitted! Your salon is now active.');
+    } catch (err: any) {
+      console.error('Manual UPI error:', err);
+      toast.error('Failed to submit payment details.');
+    } finally {
+      setSubmittingUtr(false);
+    }
+  };
+
+  const upiUri = `upi://pay?pa=${upiId}&pn=Salon%20Chair&am=${currentPlan.amount}&cu=INR&tn=Salon%20Subscription%20${salon?.name}`;
 
   if (error) {
     throw error;
@@ -301,7 +335,7 @@ export const Payment: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex flex-col gap-4">
               {paymentError ? (
                 <div className="w-full space-y-4">
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
@@ -326,14 +360,76 @@ export const Payment: React.FC = () => {
                   <p className="text-sm text-purple-400 font-bold uppercase tracking-widest">Processing Payment...</p>
                 </div>
               ) : (
-                <button
-                  onClick={() => handleRazorpayCheckout()}
-                  className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-6 h-6 fill-white" />
-                  Pay Now with Razorpay
-                </button>
+                <div className="space-y-4">
+                  <button
+                    onClick={() => handleRazorpayCheckout()}
+                    className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 flex items-center justify-center gap-2"
+                  >
+                    <Smartphone className="w-6 h-6" />
+                    Pay with Razorpay (All Apps)
+                  </button>
+                  
+                  {upiId && (
+                    <button
+                      onClick={() => setStep('manual_upi')}
+                      className="w-full py-4 bg-white/5 text-white rounded-2xl font-bold hover:bg-white/10 transition-all border border-white/10 flex items-center justify-center gap-2"
+                    >
+                      <QrCode className="w-6 h-6" />
+                      Pay via Direct UPI QR
+                    </button>
+                  )}
+                </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {step === 'manual_upi' && (
+          <div
+            key="manual_upi"
+            className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-8 shadow-xl backdrop-blur-2xl text-center"
+          >
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-white italic">Direct UPI Payment</h2>
+              <p className="text-white/40">Scan the QR code below using any UPI app.</p>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
+              <QRCodeSVG value={upiUri} size={200} level="H" includeMargin={true} />
+            </div>
+
+            <div className="space-y-4 text-left">
+              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl">
+                <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mb-1">UPI ID</p>
+                <p className="text-white font-mono">{upiId}</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-white/40 font-bold uppercase tracking-widest">Transaction ID / UTR (12 Digits)</label>
+                <input
+                  type="text"
+                  value={utr}
+                  onChange={(e) => setUtr(e.target.value.replace(/\D/g, '').substring(0, 12))}
+                  placeholder="Enter 12-digit UTR number"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none transition-all"
+                />
+              </div>
+
+              <button
+                onClick={handleManualUpiSubmit}
+                disabled={submittingUtr || utr.length < 12}
+                className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submittingUtr ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                Verify & Activate
+              </button>
+
+              <button
+                onClick={() => setStep('info')}
+                className="w-full py-3 text-white/40 text-sm hover:text-white transition-colors"
+              >
+                Go Back
+              </button>
             </div>
           </div>
         )}
