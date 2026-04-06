@@ -253,15 +253,16 @@ export const SalonSetup: React.FC = () => {
         console.log('Salon document created with ID:', docRef.id);
       }
       
-      // 3. Update User Role (if not already)
-      if (profile.role !== 'salon_owner') {
-        console.log('Updating user role to salon_owner...');
-        await updateProfile({ role: 'salon_owner' });
-        console.log('User role updated successfully');
-      }
-
       toast.success(profile.role === 'salon_owner' ? 'Salon updated successfully!' : 'Salon setup complete!', { id: toastId });
-      navigate('/dashboard');
+      
+      // If it's a new setup, go to payment. If it's an update, go to dashboard.
+      if (profile.role === 'salon_owner') {
+        navigate('/dashboard');
+      } else {
+        // Update role first, then navigate to payment
+        await updateProfile({ role: 'salon_owner' });
+        navigate('/payment');
+      }
     } catch (error) {
       console.error('Error during salon setup/update:', error);
       toast.error('Failed to save salon details. Please try again.', { id: toastId });
@@ -539,7 +540,7 @@ export const SalonSetup: React.FC = () => {
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
               {loading 
                 ? (profile.role === 'salon_owner' ? 'Updating salon...' : 'Setting up salon...') 
-                : (profile.role === 'salon_owner' ? 'Save Changes' : 'Complete Setup')}
+                : (profile.role === 'salon_owner' ? 'Save Changes' : 'Save & Pay Now')}
             </button>
           </div>
         </form>
