@@ -6,6 +6,20 @@ import { auth, db, googleProvider } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { getDocFromServer } from 'firebase/firestore';
+
+// Connection test as per critical directive
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if(error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration. ");
+      toast.error("Firebase connection failed. Please check your configuration.");
+    }
+  }
+}
+testConnection();
 
 interface AuthContextType {
   user: User | null;

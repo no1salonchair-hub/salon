@@ -11,8 +11,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (request.auth.token.email == "no1salonchair@gmail.com" && request.auth.token.email_verified == true);
+      return isAuthenticated() && request.auth.token.email == "no1salonchair@gmail.com";
     }
 
     function isValidEmail(email) {
@@ -40,6 +39,8 @@ service cloud.firestore {
              doc.subscriptionExpiry is timestamp &&
              (!('averageRating' in doc) || doc.averageRating is number) &&
              (!('reviewCount' in doc) || doc.reviewCount is number) &&
+             (!('subscriptionPlan' in doc) || doc.subscriptionPlan in ['monthly', 'yearly']) &&
+             (!('updatedAt' in doc) || doc.updatedAt is timestamp) &&
              doc.createdAt is timestamp;
     }
 
@@ -62,14 +63,16 @@ service cloud.firestore {
 
     function isValidPayment(doc) {
       return doc.salonId is string &&
-             doc.amount is number && doc.amount == 200 &&
-             doc.status in ['pending', 'success'] &&
+             doc.amount is number && (doc.amount == 200 || doc.amount == 2000) &&
+             doc.status in ['pending', 'success', 'pending_verification'] &&
              doc.createdAt is timestamp &&
              doc.requestedBy is string &&
              doc.salonName is string &&
-             doc.razorpayPaymentId is string &&
+             (!('razorpayPaymentId' in doc) || doc.razorpayPaymentId is string) &&
              (!('razorpayOrderId' in doc) || doc.razorpayOrderId is string) &&
-             (!('razorpayQrId' in doc) || doc.razorpayQrId is string);
+             (!('razorpayQrId' in doc) || doc.razorpayQrId is string) &&
+             (!('utr' in doc) || (doc.utr is string && doc.utr.size() == 12)) &&
+             (!('method' in doc) || doc.method is string);
     }
 
     function isValidReview(doc) {
@@ -82,9 +85,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId && (request.resource.data.role != 'admin' || isAdmin());
-      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && 
                     request.resource.data.uid == resource.data.uid &&
                     (isAdmin() || (request.resource.data.role == resource.data.role || (resource.data.role == 'user' && request.resource.data.role == 'salon_owner')));
     }
@@ -117,7 +120,7 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId) || isAdmin());
-      allow create: if isAuthenticated() && isOwner(get(/databases/$(database)/documents/salons/$(request.resource.data.salonId)).data.ownerId) && isValidPayment(request.resource.data) && request.resource.data.status == 'pending';
+      allow create: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/salons/$(request.resource.data.salonId)).data.ownerId) || isAdmin()) && isValidPayment(request.resource.data);
       allow update: if isAdmin() && isValidPayment(request.resource.data);
     }
 

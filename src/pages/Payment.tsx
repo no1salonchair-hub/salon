@@ -154,17 +154,20 @@ export const Payment: React.FC = () => {
             }
 
             // 4. Save Payment Record to Firestore
-            await addDoc(collection(db, 'payments'), {
+            const paymentData = {
               salonId: salon.id,
               amount: currentPlan.amount,
               planId: currentPlan.id,
-              status: 'success',
+              status: 'success' as const,
               createdAt: Timestamp.now(),
               requestedBy: profile.uid,
               salonName: salon.name,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
-            });
+            };
+            
+            console.log('Saving Razorpay payment to Firestore:', paymentData);
+            await addDoc(collection(db, 'payments'), paymentData);
 
             setStep('success');
             toast.success('Payment successful! Your salon is now active.');
@@ -214,19 +217,23 @@ export const Payment: React.FC = () => {
     try {
       // For manual UPI, we record the payment and set salon to active
       // In a real app, this would be verified by an admin
-      await addDoc(collection(db, 'payments'), {
+      const paymentData = {
         salonId: salon?.id,
         amount: currentPlan.amount,
         planId: currentPlan.id,
-        status: 'pending_verification',
+        status: 'pending_verification' as const,
         createdAt: Timestamp.now(),
         requestedBy: profile?.uid,
         salonName: salon?.name,
         utr: utr,
         method: 'manual_upi'
-      });
+      };
+      
+      console.log('Saving manual UPI payment to Firestore:', paymentData);
+      await addDoc(collection(db, 'payments'), paymentData);
 
       if (salon?.id) {
+        console.log('Activating salon:', salon.id);
         const salonRef = doc(db, 'salons', salon.id);
         const now = new Date();
         let durationDays = selectedPlan === 'yearly' ? 365 : 30;
@@ -244,7 +251,11 @@ export const Payment: React.FC = () => {
       toast.success('Payment submitted! Your salon is now active.');
     } catch (err: any) {
       console.error('Manual UPI error:', err);
-      toast.error('Failed to submit payment details.');
+      try {
+        handleFirestoreError(err, OperationType.WRITE, 'payments/salons');
+      } catch (e: any) {
+        setError(e);
+      }
     } finally {
       setSubmittingUtr(false);
     }
