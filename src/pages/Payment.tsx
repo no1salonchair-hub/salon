@@ -261,7 +261,7 @@ export const Payment: React.FC = () => {
     }
   };
 
-  const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Salon Chair')}&am=${currentPlan.amount}.00&cu=INR&tn=${encodeURIComponent(`Subscription for ${salon?.name || 'Salon'}`)}`;
+  const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Salon Chair')}&am=${currentPlan.amount}&cu=INR&tn=${encodeURIComponent(`SalonSub_${salon?.id?.substring(0, 6) || 'Plan'}`)}&tr=${encodeURIComponent(`TXN${Date.now()}`)}`;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -452,16 +452,33 @@ export const Payment: React.FC = () => {
               <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
                 <div>
                   <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mb-1">UPI ID</p>
-                  <p className="text-white font-mono">{upiId}</p>
+                  <p className="text-white font-mono">{upiId || 'Not Configured'}</p>
                 </div>
                 <button 
                   onClick={() => copyToClipboard(upiId)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors text-purple-400"
+                  className="p-3 bg-purple-600/20 hover:bg-purple-600/40 rounded-xl transition-colors text-purple-400 flex items-center gap-2"
                   title="Copy UPI ID"
                 >
+                  <span className="text-[10px] font-bold uppercase">Copy ID</span>
                   <QrCode className="w-5 h-5" />
                 </button>
               </div>
+
+              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mb-1">Amount</p>
+                  <p className="text-white font-mono">₹{currentPlan.amount}</p>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard(currentPlan.amount.toString())}
+                  className="p-3 bg-purple-600/20 hover:bg-purple-600/40 rounded-xl transition-colors text-purple-400 flex items-center gap-2"
+                  title="Copy Amount"
+                >
+                  <span className="text-[10px] font-bold uppercase">Copy Amount</span>
+                  <CheckCircle className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
 
               <div className="space-y-2">
                 <label className="text-xs text-white/40 font-bold uppercase tracking-widest">Transaction ID / UTR (12 Digits)</label>
