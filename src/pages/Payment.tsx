@@ -23,7 +23,9 @@ export const Payment: React.FC = () => {
   const [utr, setUtr] = useState('');
   const [submittingUtr, setSubmittingUtr] = useState(false);
 
-  const upiId = import.meta.env.VITE_UPI_ID || ''; // Optional direct UPI ID fallback
+  const upiId = (import.meta.env.VITE_UPI_ID || '').trim(); // Optional direct UPI ID fallback
+  const isTestMode = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').startsWith('rzp_test_');
+  const isUpiValid = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(upiId);
 
   const plans = {
     monthly: {
@@ -248,7 +250,12 @@ export const Payment: React.FC = () => {
     }
   };
 
-  const upiUri = `upi://pay?pa=${upiId}&pn=Salon%20Chair&am=${currentPlan.amount}&cu=INR&tn=Salon%20Subscription%20${salon?.name}`;
+  const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('Salon Chair')}&am=${currentPlan.amount}.00&cu=INR&tn=${encodeURIComponent(`Subscription for ${salon?.name || 'Salon'}`)}`;
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
+  };
 
   if (error) {
     throw error;
@@ -336,6 +343,13 @@ export const Payment: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-4">
+              {isTestMode && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-center">
+                  <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">
+                    ⚠️ Razorpay is in TEST MODE. QR codes will not be payable.
+                  </p>
+                </div>
+              )}
               {paymentError ? (
                 <div className="w-full space-y-4">
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
@@ -392,16 +406,35 @@ export const Payment: React.FC = () => {
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-white italic">Direct UPI Payment</h2>
               <p className="text-white/40">Scan the QR code below using any UPI app.</p>
+              {!isUpiValid && upiId && (
+                <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest">
+                    ⚠️ UPI ID "{upiId}" appears invalid. Check Settings &gt; Secrets &gt; VITE_UPI_ID
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20">
+            <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl shadow-purple-600/20 relative group">
               <QRCodeSVG value={upiUri} size={200} level="H" includeMargin={true} />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-3xl backdrop-blur-sm">
+                <p className="text-white text-xs font-bold">Scan with any UPI App</p>
+              </div>
             </div>
 
             <div className="space-y-4 text-left">
-              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl">
-                <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mb-1">UPI ID</p>
-                <p className="text-white font-mono">{upiId}</p>
+              <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mb-1">UPI ID</p>
+                  <p className="text-white font-mono">{upiId}</p>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard(upiId)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors text-purple-400"
+                  title="Copy UPI ID"
+                >
+                  <QrCode className="w-5 h-5" />
+                </button>
               </div>
 
               <div className="space-y-2">
