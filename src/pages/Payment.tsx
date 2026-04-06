@@ -122,6 +122,13 @@ export const Payment: React.FC = () => {
         name: 'Salon Chair',
         description: `${currentPlan.name} for ${salon.name}`,
         order_id: order.id,
+        prefill: {
+          name: profile.name || '',
+          email: profile.email || '',
+        },
+        theme: {
+          color: '#9333ea'
+        },
         handler: async (response: any) => {
           try {
             setPaymentLoading(true);
@@ -177,13 +184,6 @@ export const Payment: React.FC = () => {
           } finally {
             setPaymentLoading(false);
           }
-        },
-        prefill: {
-          name: profile.name || '',
-          email: profile.email || '',
-        },
-        theme: {
-          color: '#9333ea',
         },
         modal: {
           ondismiss: () => {
@@ -400,7 +400,7 @@ export const Payment: React.FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       <Smartphone className="w-6 h-6" />
-                      <span>Pay with Razorpay (All Apps)</span>
+                      <span>Pay with Razorpay (Card, UPI, Netbanking)</span>
                     </div>
                     {isTestMode && (
                       <span className="text-[8px] uppercase tracking-[0.2em] font-black bg-yellow-500 text-black px-2 py-0.5 rounded-full">
@@ -408,6 +408,20 @@ export const Payment: React.FC = () => {
                       </span>
                     )}
                   </button>
+
+                  {isTestMode && (
+                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-left">
+                      <p className="text-xs text-yellow-500 font-bold uppercase tracking-widest mb-2">⚠️ Razorpay Test Mode Notice</p>
+                      <div className="text-sm text-white/70 leading-relaxed space-y-2">
+                        <p>You are using <strong>Test Keys</strong>. In this mode:</p>
+                        <ul className="list-disc ml-4 space-y-1">
+                          <li>Razorpay QR codes <strong>cannot</strong> be scanned by real apps (PhonePe, GPay).</li>
+                          <li>To test, select <strong>"Netbanking"</strong> or <strong>"Card"</strong> and use test credentials.</li>
+                          <li>To accept real payments, update to <strong>Live Mode</strong> in Settings &gt; Secrets.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                   
                   {upiId && (
                     <button
@@ -507,7 +521,6 @@ export const Payment: React.FC = () => {
                 Go Back
               </button>
             </div>
-          </div>
         )}
 
         {step === 'success' && (

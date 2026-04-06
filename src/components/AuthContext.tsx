@@ -6,7 +6,6 @@ import { auth, db, googleProvider } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { getDocFromServer } from 'firebase/firestore';
 
 // Connection test as per critical directive
 async function testConnection() {
