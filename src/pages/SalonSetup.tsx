@@ -25,6 +25,7 @@ export const SalonSetup: React.FC = () => {
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [address, setAddress] = useState('');
+  const [salonStatus, setSalonStatus] = useState<'pending' | 'active' | 'hidden' | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<'monthly' | 'yearly'>('monthly');
 
@@ -73,6 +74,7 @@ export const SalonSetup: React.FC = () => {
           setSelectedState(salonData.location.state || '');
           setSelectedCity(salonData.location.city || '');
           setAddress(salonData.location.address || '');
+          setSalonStatus(salonData.status);
           if (salonData.subscriptionPlan) {
             setSubscriptionPlan(salonData.subscriptionPlan);
           }
@@ -255,12 +257,14 @@ export const SalonSetup: React.FC = () => {
       
       toast.success(profile.role === 'salon_owner' ? 'Salon updated successfully!' : 'Salon setup complete!', { id: toastId });
       
-      // If it's a new setup, go to payment. If it's an update, go to dashboard.
-      if (profile.role === 'salon_owner') {
+      // If it's a new setup OR the salon is pending, go to payment. If it's an active update, go to dashboard.
+      if (profile.role === 'salon_owner' && salonStatus === 'active') {
         navigate('/dashboard');
       } else {
-        // Update role first, then navigate to payment
-        await updateProfile({ role: 'salon_owner' });
+        // Update role first if needed, then navigate to payment
+        if (profile.role !== 'salon_owner') {
+          await updateProfile({ role: 'salon_owner' });
+        }
         navigate('/payment');
       }
     } catch (error) {
@@ -540,7 +544,7 @@ export const SalonSetup: React.FC = () => {
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
               {loading 
                 ? (profile.role === 'salon_owner' ? 'Updating salon...' : 'Setting up salon...') 
-                : (profile.role === 'salon_owner' ? 'Save Changes' : 'Save & Pay Now')}
+                : (profile.role === 'salon_owner' && salonStatus === 'active' ? 'Save Changes' : 'Save & Pay Now')}
             </button>
           </div>
         </form>
