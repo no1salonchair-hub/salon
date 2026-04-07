@@ -4,7 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle, Loader2, Scissors, ShieldCheck, AlertTriangle, Zap, QrCode, Smartphone } from 'lucide-react';
+import { CheckCircle, Loader2, ShieldCheck, AlertTriangle, QrCode } from 'lucide-react';
 import { Salon } from '../types';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -16,15 +16,12 @@ export const Payment: React.FC = () => {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [step, setStep] = useState<'info' | 'success' | 'manual_upi'>('info');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
   const [utr, setUtr] = useState('');
   const [submittingUtr, setSubmittingUtr] = useState(false);
 
-  const upiId = (import.meta.env.VITE_UPI_ID || '').trim(); // Optional direct UPI ID fallback
-  const isTestMode = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').startsWith('rzp_test_');
+  const upiId = (import.meta.env.VITE_UPI_ID || '').trim(); // Required direct UPI ID
   const isUpiValid = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(upiId);
 
   const plans = {
@@ -76,140 +73,6 @@ export const Payment: React.FC = () => {
       setError(err);
     });
   }, [profile, navigate]);
-
-  const handleRazorpayCheckout = async () => {
-    if (!salon || !profile) return;
-    setPaymentLoading(true);
-    setPaymentError(null);
-
-    try {
-      // 1. Create Order on Backend
-      const orderResponse = await fetch('/api/payment/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: currentPlan.amount,
-          currency: 'INR',
-          receipt: `rcpt_${Date.now()}_${salon.id.substring(0, 8)}`,
-          salonId: salon.id,
-          planId: currentPlan.id
-        }),
-      });
-
-      const contentType = orderResponse.headers.get("content-type");
-      let order: any;
-      
-      if (contentType && contentType.includes("application/json")) {
-        order = await orderResponse.json();
-      } else {
-        const text = await orderResponse.text();
-        console.error('Non-JSON Order Response:', text);
-        
-        // Try to extract error from HTML if possible (common in platform errors)
-        const errorMessage = text.length < 500 ? text : 'The server returned a non-JSON response (likely a crash or timeout).';
-        throw new Error(`Server Error: ${errorMessage}\n\nPlease check your Razorpay keys in Settings > Secrets.`);
-      }
-
-      if (!orderResponse.ok) {
-        throw new Error(order.details || order.error || `Failed to create payment order (${orderResponse.status})`);
-      }
-
-      // 2. Open Razorpay Checkout
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || '', // Public key
-        amount: order.amount,
-        currency: order.currency,
-        name: 'Salon Chair',
-        description: `${currentPlan.name} for ${salon.name}`,
-        order_id: order.id,
-        prefill: {
-          name: profile.name || '',
-          email: profile.email || '',
-        },
-        theme: {
-          color: '#9333ea'
-        },
-        handler: async (response: any) => {
-          try {
-            setPaymentLoading(true);
-            // 3. Verify Payment on Backend
-            const verifyResponse = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                salonId: salon.id,
-                planId: currentPlan.id
-              }),
-            });
-
-            const verifyContentType = verifyResponse.headers.get("content-type");
-            let verifyData: any;
-            
-            if (verifyContentType && verifyContentType.includes("application/json")) {
-              verifyData = await verifyResponse.json();
-            } else {
-              const text = await verifyResponse.text();
-              console.error('Non-JSON Verify Response:', text);
-              throw new Error(`Payment verification failed with status ${verifyResponse.status}.`);
-            }
-
-            if (!verifyResponse.ok) {
-              throw new Error(verifyData.details || verifyData.error || `Payment verification failed (${verifyResponse.status})`);
-            }
-
-            // 4. Save Payment Record to Firestore
-            const paymentData = {
-              salonId: salon.id,
-              amount: currentPlan.amount,
-              planId: currentPlan.id,
-              status: 'success' as const,
-              createdAt: Timestamp.now(),
-              requestedBy: profile.uid,
-              salonName: salon.name,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpayOrderId: response.razorpay_order_id,
-            };
-            
-            console.log('Saving Razorpay payment to Firestore:', paymentData);
-            try {
-              await addDoc(collection(db, 'payments'), paymentData);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.CREATE, 'payments');
-            }
-
-            setStep('success');
-            toast.success('Payment successful! Your salon is now active.');
-          } catch (err: any) {
-            console.error('Verification error:', err);
-            toast.error(err.message || 'Verification failed. Please contact support.');
-          } finally {
-            setPaymentLoading(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setPaymentLoading(false);
-          }
-        }
-      };
-
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', function (response: any) {
-        console.error('Payment failed:', response.error);
-        toast.error(`Payment failed: ${response.error.description}`);
-        setPaymentLoading(false);
-      });
-      rzp.open();
-    } catch (err: any) {
-      console.error('Checkout error:', err);
-      setPaymentError(err.message || 'Failed to initialize payment');
-      toast.error(err.message || 'Failed to initialize payment');
-      setPaymentLoading(false);
-    }
-  };
 
   const handleManualUpiSubmit = async () => {
     if (!utr || utr.length < 12) {
@@ -296,7 +159,7 @@ export const Payment: React.FC = () => {
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center text-white">
-                <Zap className="w-6 h-6 fill-white" />
+                <QrCode className="w-6 h-6" />
               </div>
               <div>
                 <h1 className="text-3xl font-black text-white italic">Salon Subscription</h1>
@@ -358,96 +221,17 @@ export const Payment: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-4">
-              {isTestMode && (
-                <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl space-y-2">
-                  <div className="flex items-center gap-2 justify-center">
-                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                    <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">
-                      Razorpay is in TEST MODE
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-yellow-500/70 text-center leading-tight">
-                    QR codes generated by Razorpay in Test Mode are not payable by real UPI apps. 
-                    To accept real payments, use <span className="text-white">Live Keys</span> in Settings &gt; Secrets 
-                    or use the <span className="text-white">Direct UPI QR</span> option below.
-                  </p>
-                  <p className="text-[8px] text-yellow-500/50 text-center uppercase tracking-widest mt-1">
-                    Current Key: {(import.meta.env.VITE_RAZORPAY_KEY_ID || '').substring(0, 8)}...
-                  </p>
-                </div>
-              )}
-              {paymentError ? (
-                <div className="w-full space-y-4">
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-left">
-                    <p className="text-xs text-red-500 font-bold uppercase tracking-widest mb-2">❌ Payment Error</p>
-                    <p className="text-sm text-white/70 leading-relaxed">
-                      {paymentError}
-                    </p>
-                    {paymentError.includes('Authentication') && (
-                      <div className="mt-4 p-3 bg-white/5 rounded-xl space-y-2">
-                        <p className="text-[10px] text-white/40 uppercase font-black">Troubleshooting Steps:</p>
-                        <ul className="text-[10px] text-white/60 list-disc ml-4 space-y-1">
-                          <li>Go to <strong>Settings &gt; Secrets</strong></li>
-                          <li>Ensure <strong>RAZORPAY_KEY_ID</strong> and <strong>VITE_RAZORPAY_KEY_ID</strong> match.</li>
-                          <li>Ensure <strong>RAZORPAY_KEY_SECRET</strong> is correct.</li>
-                          <li>Click <strong>Restart Dev Server</strong> in Settings.</li>
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleRazorpayCheckout()}
-                    className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Zap className="w-5 h-5 fill-white" />
-                    Retry Payment
-                  </button>
-                </div>
-              ) : paymentLoading ? (
-                <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-3 justify-center w-full">
-                  <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
-                  <p className="text-sm text-purple-400 font-bold uppercase tracking-widest">Processing Payment...</p>
-                </div>
+              {upiId ? (
+                <button
+                  onClick={() => setStep('manual_upi')}
+                  className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 flex items-center justify-center gap-2 group"
+                >
+                  <QrCode className="w-6 h-6" />
+                  <span>Pay via UPI QR Code</span>
+                </button>
               ) : (
-                <div className="space-y-4">
-                  <button
-                    onClick={() => handleRazorpayCheckout()}
-                    className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 flex flex-col items-center justify-center gap-1 relative overflow-hidden group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="w-6 h-6" />
-                      <span>Pay with Razorpay (Card, UPI, Netbanking)</span>
-                    </div>
-                    {isTestMode && (
-                      <span className="text-[8px] uppercase tracking-[0.2em] font-black bg-yellow-500 text-black px-2 py-0.5 rounded-full">
-                        Test Mode Only
-                      </span>
-                    )}
-                  </button>
-
-                  {isTestMode && (
-                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-left">
-                      <p className="text-xs text-yellow-500 font-bold uppercase tracking-widest mb-2">⚠️ Razorpay Test Mode Notice</p>
-                      <div className="text-sm text-white/70 leading-relaxed space-y-2">
-                        <p>You are using <strong>Test Keys</strong>. In this mode:</p>
-                        <ul className="list-disc ml-4 space-y-1">
-                          <li>Razorpay QR codes <strong>cannot</strong> be scanned by real apps (PhonePe, GPay).</li>
-                          <li>To test, select <strong>"Netbanking"</strong> or <strong>"Card"</strong> and use test credentials.</li>
-                          <li>To accept real payments, update to <strong>Live Mode</strong> in Settings &gt; Secrets.</li>
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {upiId && (
-                    <button
-                      onClick={() => setStep('manual_upi')}
-                      className="w-full py-4 bg-white/5 text-white rounded-2xl font-bold hover:bg-white/10 transition-all border border-white/10 flex items-center justify-center gap-2"
-                    >
-                      <QrCode className="w-6 h-6" />
-                      Pay via Direct UPI QR
-                    </button>
-                  )}
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                  <p className="text-sm text-red-500 font-bold">UPI Payment not configured. Please contact support.</p>
                 </div>
               )}
             </div>
