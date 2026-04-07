@@ -5,6 +5,8 @@ import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import cors from "cors";
+import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 
 dotenv.config();
 
@@ -17,6 +19,38 @@ let _firebaseApp: any = null;
 let _app: any = null;
 let _Razorpay: any = null;
 let _firebaseClient: any = null;
+let _adminDb: admin.firestore.Firestore | null = null;
+
+async function getAdminDb() {
+  if (_adminDb) return _adminDb;
+  
+  if (admin.apps.length === 0) {
+    let firebaseConfig: any = {};
+    try {
+      const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+      if (fs.existsSync(configPath)) {
+        firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      }
+    } catch (e) {}
+
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID
+    });
+  }
+  
+  // Use the specific database ID if provided
+  let firestoreDatabaseId = "(default)";
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      firestoreDatabaseId = config.firestoreDatabaseId || "(default)";
+    }
+  } catch (e) {}
+
+  _adminDb = getFirestore(admin.app(), firestoreDatabaseId === "(default)" ? undefined : firestoreDatabaseId);
+  return _adminDb;
+}
 
 async function getFirebaseClient() {
   if (_firebaseClient) return _firebaseClient;
@@ -194,7 +228,15 @@ export async function createApp() {
           throw new Error("Library unavailable");
         }
       } catch (libError: any) {
-        console.log("Using direct API fallback:", libError.message);
+        console.log("Razorpay Library Error:", libError.message);
+        if (libError.statusCode === 401 || libError.message?.includes('401')) {
+          return res.status(401).json({ 
+            error: "Authentication failed", 
+            details: "Your Razorpay Key ID or Secret is incorrect. Please verify them in Settings > Secrets." 
+          });
+        }
+        
+        console.log("Using direct API fallback...");
         
         const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
         const response = await fetch('https://api.razorpay.com/v1/orders', {
@@ -209,6 +251,14 @@ export async function createApp() {
         if (!response.ok) {
           const errorData = await response.json();
           console.error("Razorpay API Error Response:", JSON.stringify(errorData));
+          
+          if (response.status === 401) {
+            return res.status(401).json({ 
+              error: "Authentication failed", 
+              details: "Invalid Razorpay Key ID or Secret. Ensure you are using the correct Secret for your Live Key." 
+            });
+          }
+          
           throw new Error(errorData.error?.description || `Razorpay API error: ${response.status}`);
         }
 
@@ -242,19 +292,18 @@ export async function createApp() {
 
       if (razorpay_signature === expectedSign) {
         if (salonId && planId) {
-          const db = await getDb();
-          const client = await getFirebaseClient();
-          const salonRef = client.doc(db, "salons", salonId);
+          const adminDb = await getAdminDb();
+          const salonRef = adminDb.collection("salons").doc(salonId);
           const now = new Date();
           let durationDays = planId === 'yearly' ? 365 : 30;
           const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-          await client.updateDoc(salonRef, {
+          await salonRef.update({
             status: "active",
-            subscriptionExpiry: client.Timestamp.fromDate(expiry),
+            subscriptionExpiry: admin.firestore.Timestamp.fromDate(expiry),
             subscriptionPlan: planId,
             lastPaymentId: razorpay_payment_id,
-            updatedAt: client.Timestamp.now()
+            updatedAt: admin.firestore.Timestamp.now()
           });
         }
         res.json({ status: "ok" });

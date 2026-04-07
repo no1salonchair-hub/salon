@@ -174,7 +174,11 @@ export const Payment: React.FC = () => {
             };
             
             console.log('Saving Razorpay payment to Firestore:', paymentData);
-            await addDoc(collection(db, 'payments'), paymentData);
+            try {
+              await addDoc(collection(db, 'payments'), paymentData);
+            } catch (err) {
+              handleFirestoreError(err, OperationType.CREATE, 'payments');
+            }
 
             setStep('success');
             toast.success('Payment successful! Your salon is now active.');
@@ -367,16 +371,28 @@ export const Payment: React.FC = () => {
                     To accept real payments, use <span className="text-white">Live Keys</span> in Settings &gt; Secrets 
                     or use the <span className="text-white">Direct UPI QR</span> option below.
                   </p>
+                  <p className="text-[8px] text-yellow-500/50 text-center uppercase tracking-widest mt-1">
+                    Current Key: {(import.meta.env.VITE_RAZORPAY_KEY_ID || '').substring(0, 8)}...
+                  </p>
                 </div>
               )}
               {paymentError ? (
                 <div className="w-full space-y-4">
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
-                    <p className="text-sm text-red-500 font-bold">{paymentError}</p>
-                    {paymentError.toLowerCase().includes('key') && (
-                      <p className="text-[10px] text-red-400 mt-2 uppercase tracking-widest font-black">
-                        Tip: Check your Razorpay Keys in Settings &gt; Secrets
-                      </p>
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-left">
+                    <p className="text-xs text-red-500 font-bold uppercase tracking-widest mb-2">❌ Payment Error</p>
+                    <p className="text-sm text-white/70 leading-relaxed">
+                      {paymentError}
+                    </p>
+                    {paymentError.includes('Authentication') && (
+                      <div className="mt-4 p-3 bg-white/5 rounded-xl space-y-2">
+                        <p className="text-[10px] text-white/40 uppercase font-black">Troubleshooting Steps:</p>
+                        <ul className="text-[10px] text-white/60 list-disc ml-4 space-y-1">
+                          <li>Go to <strong>Settings &gt; Secrets</strong></li>
+                          <li>Ensure <strong>RAZORPAY_KEY_ID</strong> and <strong>VITE_RAZORPAY_KEY_ID</strong> match.</li>
+                          <li>Ensure <strong>RAZORPAY_KEY_SECRET</strong> is correct.</li>
+                          <li>Click <strong>Restart Dev Server</strong> in Settings.</li>
+                        </ul>
+                      </div>
                     )}
                   </div>
                   <button
