@@ -5,10 +5,23 @@ import fs from "fs";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import cors from "cors";
+import webpush from "web-push";
 import admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 
 dotenv.config();
+
+// VAPID Keys setup
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BDrpAznuNeO5u-efrq6EvitanPYlXCrjwqI_Ox2Xs4tOKEVc1cLQmubb2cUVzFd6Cxt1MURVdiGSkNq7Y-OK3Zk";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "VjdJ-fhcnb5dOLJfbRlPEt3zilNr_3G2E1N3PRvBMgY";
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:no1salonchair@gmail.com",
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -171,8 +184,8 @@ export async function createApp() {
   });
 
   app.get("/api/notifications/vapid-key", (req, res) => {
-    if (process.env.VAPID_PUBLIC_KEY) {
-      res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+    if (VAPID_PUBLIC_KEY) {
+      res.json({ publicKey: VAPID_PUBLIC_KEY });
     } else {
       res.status(404).json({ error: "VAPID public key not configured" });
     }
@@ -338,6 +351,65 @@ export async function createApp() {
       });
     }
   });
+
+  // Start Firestore listener for new bookings
+  const startBookingListener = async () => {
+    const adminDb = await getAdminDb();
+    console.log("Starting Firestore listener for new bookings...");
+    
+    adminDb.collection("bookings").onSnapshot(async (snapshot) => {
+      const changes = snapshot.docChanges();
+      for (const change of changes) {
+        if (change.type === "added") {
+          const booking = change.doc.data();
+          // Only notify for new bookings (less than 1 minute old to avoid spamming on startup)
+          const createdAt = booking.createdAt?.toDate();
+          if (createdAt && (Date.now() - createdAt.getTime()) < 60000) {
+            console.log("New booking detected:", change.doc.id);
+            
+            try {
+              // 1. Get salon details to find ownerId
+              const salonRef = adminDb.collection("salons").doc(booking.salonId);
+              const salonDoc = await salonRef.get();
+              if (!salonDoc.exists) continue;
+              const salon = salonDoc.data();
+              if (!salon) continue;
+              
+              const ownerId = salon.ownerId;
+              
+              // 2. Get push subscription for owner
+              const subRef = adminDb.collection("push_subscriptions").doc(ownerId);
+              const subDoc = await subRef.get();
+              if (!subDoc.exists) {
+                console.log("No push subscription found for owner:", ownerId);
+                continue;
+              }
+              const subscription = subDoc.data()?.subscription;
+              
+              if (subscription) {
+                console.log("Sending push notification to owner:", ownerId);
+                const payload = JSON.stringify({
+                  title: "New Booking!",
+                  body: `You have a new booking request for ${salon.name}.`,
+                  url: `/booking/${change.doc.id}`
+                });
+                
+                await webpush.sendNotification(subscription, payload);
+                console.log("Push notification sent successfully.");
+              }
+            } catch (error) {
+              console.error("Error sending push notification:", error);
+            }
+          }
+        }
+      }
+    });
+  };
+
+  // Only start listener in non-serverless environment
+  if (!isServerless) {
+    startBookingListener();
+  }
 
   return app;
 }

@@ -20,6 +20,7 @@ import { Profile } from './pages/Profile';
 import { Privacy } from './pages/Privacy';
 import { Contact } from './pages/Contact';
 import { InstallPrompt } from './components/InstallPrompt';
+import { NotificationManager } from './components/NotificationManager';
 
 const LoadingSpinner = () => (
   <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
@@ -143,6 +144,7 @@ const AuthConsumer: React.FC = () => {
       </AnimatePresence>
       <Toaster position="top-center" expand={false} richColors />
       <InstallPrompt />
+      <NotificationManager />
     </Router>
   );
 };
