@@ -22,7 +22,6 @@ export const Payment: React.FC = () => {
   const [submittingUtr, setSubmittingUtr] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [showQr, setShowQr] = useState(false);
 
   const upiId = (import.meta.env.VITE_UPI_ID || '').trim(); // Optional direct UPI ID fallback
   const isTestMode = (import.meta.env.VITE_RAZORPAY_KEY_ID || '').startsWith('rzp_test_');
