@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { Layout } from './components/Layout';
@@ -7,18 +7,19 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Toaster } from 'sonner';
 import { HelmetProvider } from 'react-helmet-async';
 
-// Import all pages directly
-import { Login } from './pages/Login';
-import { Home } from './pages/Home';
-import { Dashboard } from './pages/Dashboard';
-import { SalonSetup } from './pages/SalonSetup';
-import { BookingDetails } from './pages/BookingDetails';
-import { AdminPanel } from './pages/AdminPanel';
-import { SalonDetails } from './pages/SalonDetails';
-import { Payment } from './pages/Payment';
-import { Profile } from './pages/Profile';
-import { Privacy } from './pages/Privacy';
-import { Contact } from './pages/Contact';
+// Lazy load pages for better performance
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const SalonSetup = lazy(() => import('./pages/SalonSetup').then(m => ({ default: m.SalonSetup })));
+const BookingDetails = lazy(() => import('./pages/BookingDetails').then(m => ({ default: m.BookingDetails })));
+const AdminPanel = lazy(() => import('./pages/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const SalonDetails = lazy(() => import('./pages/SalonDetails').then(m => ({ default: m.SalonDetails })));
+const Payment = lazy(() => import('./pages/Payment').then(m => ({ default: m.Payment })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Privacy = lazy(() => import('./pages/Privacy').then(m => ({ default: m.Privacy })));
+const Contact = lazy(() => import('./pages/Contact').then(m => ({ default: m.Contact })));
+
 import { InstallPrompt } from './components/InstallPrompt';
 import { NotificationManager } from './components/NotificationManager';
 
@@ -124,24 +125,26 @@ const AuthConsumer: React.FC = () => {
 
   return (
     <Router>
-      <AnimatePresence mode="wait">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/salon-setup" element={<ProtectedRoute><SalonSetup /></ProtectedRoute>} />
-          <Route path="/salon/:salonId" element={<ProtectedRoute><SalonDetails /></ProtectedRoute>} />
-          <Route path="/booking/:bookingId" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
-          <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/contact" element={<Contact />} />
+      <Suspense fallback={<LoadingSpinner />}>
+        <AnimatePresence mode="wait">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            
+            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/salon-setup" element={<ProtectedRoute><SalonSetup /></ProtectedRoute>} />
+            <Route path="/salon/:salonId" element={<ProtectedRoute><SalonDetails /></ProtectedRoute>} />
+            <Route path="/booking/:bookingId" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+            <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/contact" element={<Contact />} />
 
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </AnimatePresence>
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </AnimatePresence>
+      </Suspense>
       <Toaster position="top-center" expand={false} richColors />
       <InstallPrompt />
       <NotificationManager />

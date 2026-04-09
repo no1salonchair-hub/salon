@@ -64,7 +64,7 @@ export const Home: React.FC = () => {
           console.error('Home: Geolocation error', error);
           clearTimeout(geoTimeout);
         },
-        { timeout: 10000, enableHighAccuracy: false }
+        { timeout: 5000, enableHighAccuracy: false }
       );
     } else {
       console.warn('Home: Geolocation is not supported');

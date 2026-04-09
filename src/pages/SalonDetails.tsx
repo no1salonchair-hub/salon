@@ -130,6 +130,18 @@ export const SalonDetails: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'bookings'), bookingData);
+      
+      // Trigger push notification via backend
+      try {
+        await fetch('/api/notifications/trigger-booking', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: docRef.id })
+        });
+      } catch (err) {
+        console.error('Failed to trigger notification:', err);
+      }
+
       toast.success('Booking request sent successfully!');
       navigate(`/booking/${docRef.id}`);
     } catch (error) {

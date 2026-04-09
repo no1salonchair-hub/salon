@@ -211,6 +211,51 @@ export async function createApp() {
     }
   });
 
+  app.post("/api/notifications/trigger-booking", async (req, res) => {
+    try {
+      const { bookingId } = req.body;
+      if (!bookingId) return res.status(400).json({ error: "Missing bookingId" });
+
+      const adminDb = await getAdminDb();
+      const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
+      
+      if (!bookingDoc.exists) return res.status(404).json({ error: "Booking not found" });
+      const booking = bookingDoc.data();
+      if (!booking) return res.status(404).json({ error: "Booking data empty" });
+
+      // 1. Get salon details to find ownerId
+      const salonDoc = await adminDb.collection("salons").doc(booking.salonId).get();
+      if (!salonDoc.exists) return res.status(404).json({ error: "Salon not found" });
+      const salon = salonDoc.data();
+      if (!salon) return res.status(404).json({ error: "Salon data empty" });
+
+      const ownerId = salon.ownerId;
+
+      // 2. Get push subscription for owner
+      const subDoc = await adminDb.collection("push_subscriptions").doc(ownerId).get();
+      if (!subDoc.exists) {
+        return res.json({ status: "skipped", reason: "No push subscription for owner" });
+      }
+      const subscription = subDoc.data()?.subscription;
+
+      if (subscription) {
+        const payload = JSON.stringify({
+          title: "New Booking!",
+          body: `You have a new booking request for ${salon.name}.`,
+          url: `/booking/${bookingId}`
+        });
+
+        await webpush.sendNotification(subscription, payload);
+        return res.json({ status: "ok" });
+      }
+
+      res.json({ status: "skipped", reason: "Subscription data missing" });
+    } catch (error: any) {
+      console.error("Trigger Notification Error:", error);
+      res.status(500).json({ error: "Failed to send notification", details: error.message });
+    }
+  });
+
   app.post("/api/payment/order", async (req, res) => {
     console.log("Order Request Received:", JSON.stringify(req.body));
     try {
@@ -354,62 +399,66 @@ export async function createApp() {
 
   // Start Firestore listener for new bookings
   const startBookingListener = async () => {
-    const adminDb = await getAdminDb();
-    console.log("Starting Firestore listener for new bookings...");
-    
-    adminDb.collection("bookings").onSnapshot(async (snapshot) => {
-      const changes = snapshot.docChanges();
-      for (const change of changes) {
-        if (change.type === "added") {
-          const booking = change.doc.data();
-          // Only notify for new bookings (less than 1 minute old to avoid spamming on startup)
-          const createdAt = booking.createdAt?.toDate();
-          if (createdAt && (Date.now() - createdAt.getTime()) < 60000) {
-            console.log("New booking detected:", change.doc.id);
-            
-            try {
-              // 1. Get salon details to find ownerId
-              const salonRef = adminDb.collection("salons").doc(booking.salonId);
-              const salonDoc = await salonRef.get();
-              if (!salonDoc.exists) continue;
-              const salon = salonDoc.data();
-              if (!salon) continue;
+    try {
+      const adminDb = await getAdminDb();
+      console.log("Starting Firestore listener for new bookings...");
+      
+      adminDb.collection("bookings").onSnapshot(async (snapshot) => {
+        const changes = snapshot.docChanges();
+        for (const change of changes) {
+          if (change.type === "added") {
+            const booking = change.doc.data();
+            // Only notify for new bookings (less than 1 minute old to avoid spamming on startup)
+            const createdAt = booking.createdAt?.toDate();
+            if (createdAt && (Date.now() - createdAt.getTime()) < 60000) {
+              console.log("New booking detected via listener:", change.doc.id);
               
-              const ownerId = salon.ownerId;
-              
-              // 2. Get push subscription for owner
-              const subRef = adminDb.collection("push_subscriptions").doc(ownerId);
-              const subDoc = await subRef.get();
-              if (!subDoc.exists) {
-                console.log("No push subscription found for owner:", ownerId);
-                continue;
-              }
-              const subscription = subDoc.data()?.subscription;
-              
-              if (subscription) {
-                console.log("Sending push notification to owner:", ownerId);
-                const payload = JSON.stringify({
-                  title: "New Booking!",
-                  body: `You have a new booking request for ${salon.name}.`,
-                  url: `/booking/${change.doc.id}`
-                });
+              try {
+                // 1. Get salon details to find ownerId
+                const salonRef = adminDb.collection("salons").doc(booking.salonId);
+                const salonDoc = await salonRef.get();
+                if (!salonDoc.exists) continue;
+                const salon = salonDoc.data();
+                if (!salon) continue;
                 
-                await webpush.sendNotification(subscription, payload);
-                console.log("Push notification sent successfully.");
+                const ownerId = salon.ownerId;
+                
+                // 2. Get push subscription for owner
+                const subRef = adminDb.collection("push_subscriptions").doc(ownerId);
+                const subDoc = await subRef.get();
+                if (!subDoc.exists) {
+                  console.log("No push subscription found for owner:", ownerId);
+                  continue;
+                }
+                const subscription = subDoc.data()?.subscription;
+                
+                if (subscription) {
+                  console.log("Sending push notification to owner:", ownerId);
+                  const payload = JSON.stringify({
+                    title: "New Booking!",
+                    body: `You have a new booking request for ${salon.name}.`,
+                    url: `/booking/${change.doc.id}`
+                  });
+                  
+                  await webpush.sendNotification(subscription, payload);
+                  console.log("Push notification sent successfully.");
+                }
+              } catch (error) {
+                console.error("Error sending push notification:", error);
               }
-            } catch (error) {
-              console.error("Error sending push notification:", error);
             }
           }
         }
-      }
-    });
+      }, (err) => {
+        console.error("Booking listener error:", err);
+      });
+    } catch (err) {
+      console.error("Failed to start booking listener:", err);
+    }
   };
 
-  // Only start listener in non-serverless environment
-  if (!isServerless) {
-    startBookingListener();
-  }
+  // Start listener (removed isServerless check to ensure it runs in AI Studio container)
+  startBookingListener();
 
   return app;
 }

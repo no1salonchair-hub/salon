@@ -47,14 +47,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted) {
         setLoading(prev => {
           if (prev) {
-            console.warn('AuthContext: Auth initialization timed out after 8s. Forcing loading to false.');
+            console.warn('AuthContext: Auth initialization timed out after 5s. Forcing loading to false.');
             setError(new Error('Authentication is taking longer than expected. If you are using an incognito window or have third-party cookies blocked, please enable them for this site to work correctly.'));
             return false;
           }
           return prev;
         });
       }
-    }, 8000);
+    }, 5000);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
