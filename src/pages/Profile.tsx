@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { User, Mail, Shield, Scissors, Save, Loader2, CheckCircle } from 'lucide-react';
+import { User, Mail, Shield, Scissors, Save, Loader2, CheckCircle, Bell, BellOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -8,8 +8,14 @@ export const Profile: React.FC = () => {
   const { profile, updateProfile } = useAuth();
   const [name, setName] = useState(profile?.name || '');
   const [loading, setLoading] = useState(false);
-
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +31,18 @@ export const Profile: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEnableNotifications = () => {
+    const event = new CustomEvent('trigger-notification-subscribe');
+    window.dispatchEvent(event);
+    
+    // Refresh permission status after a short delay
+    setTimeout(() => {
+      if ('Notification' in window) {
+        setNotificationPermission(Notification.permission);
+      }
+    }, 1000);
   };
 
   const handleSwitchToOwner = async () => {
@@ -107,6 +125,52 @@ export const Profile: React.FC = () => {
             {loading ? 'Saving Changes...' : 'Update Profile'}
           </button>
         </form>
+
+        {profile.role === 'salon_owner' && (
+          <div className="pt-8 border-t border-white/10 space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-purple-400">
+                <Bell className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Booking Notifications</h3>
+                <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Receive alerts for new booking requests.</p>
+              </div>
+            </div>
+
+            <div className={cn(
+              "p-6 rounded-2xl border flex items-center justify-between",
+              notificationPermission === 'granted' ? "bg-green-500/5 border-green-500/20" : "bg-yellow-500/5 border-yellow-500/20"
+            )}>
+              <div className="flex items-center gap-3">
+                {notificationPermission === 'granted' ? (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                ) : (
+                  <BellOff className="w-5 h-5 text-yellow-500" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    {notificationPermission === 'granted' ? 'Notifications Enabled' : 'Notifications Disabled'}
+                  </p>
+                  <p className="text-xs text-white/40">
+                    {notificationPermission === 'granted' 
+                      ? 'You will receive push notifications for new bookings.' 
+                      : 'Please enable notifications to stay updated on new bookings.'}
+                  </p>
+                </div>
+              </div>
+              
+              {notificationPermission !== 'granted' && (
+                <button
+                  onClick={handleEnableNotifications}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-purple-600/20"
+                >
+                  Enable Now
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {profile.role === 'user' && (
           <div className="pt-8 border-t border-white/10 text-center">

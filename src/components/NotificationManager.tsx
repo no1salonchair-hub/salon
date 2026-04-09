@@ -21,10 +21,24 @@ export const NotificationManager: React.FC = () => {
             setIsSubscribed(true);
             // Update subscription on server just in case
             await sendSubscriptionToServer(subscription, profile.uid);
-          } else {
-            // Request permission and subscribe
+          }
+          
+          // Listen for manual trigger
+          const handleManualSubscribe = async () => {
+            console.log('Manual notification subscription triggered');
+            await subscribeUser(registration);
+          };
+
+          window.addEventListener('trigger-notification-subscribe', handleManualSubscribe);
+          
+          // Also try automatic subscription if not subscribed
+          if (!subscription) {
             await subscribeUser(registration);
           }
+
+          return () => {
+            window.removeEventListener('trigger-notification-subscribe', handleManualSubscribe);
+          };
         } catch (error) {
           console.error('Service Worker registration failed:', error);
         }
@@ -42,24 +56,32 @@ export const NotificationManager: React.FC = () => {
           applicationServerKey: urlBase64ToUint8Array(publicKey)
         });
 
-        console.log('User is subscribed:', subscription);
+        console.log('User is subscribed:', JSON.stringify(subscription));
         await sendSubscriptionToServer(subscription, profile.uid);
         setIsSubscribed(true);
         toast.success('Notifications enabled for new bookings!');
       } catch (error) {
         console.error('Failed to subscribe user:', error);
+        toast.error('Failed to enable notifications. Please check your browser settings.');
       }
     };
 
     const sendSubscriptionToServer = async (subscription: PushSubscription, userId: string) => {
       try {
-        await fetch('/api/notifications/subscribe', {
+        console.log('Sending subscription to server for user:', userId);
+        const response = await fetch('/api/notifications/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subscription, userId })
         });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to save subscription');
+        }
+        console.log('Subscription saved to server successfully');
       } catch (error) {
         console.error('Error sending subscription to server:', error);
+        toast.error('Failed to sync notification settings with server.');
       }
     };
 

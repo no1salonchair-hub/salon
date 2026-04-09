@@ -212,6 +212,7 @@ export async function createApp() {
   });
 
   app.post("/api/notifications/trigger-booking", async (req, res) => {
+    console.log("Trigger Notification Request:", req.body);
     try {
       const { bookingId } = req.body;
       if (!bookingId) return res.status(400).json({ error: "Missing bookingId" });
@@ -219,26 +220,37 @@ export async function createApp() {
       const adminDb = await getAdminDb();
       const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
       
-      if (!bookingDoc.exists) return res.status(404).json({ error: "Booking not found" });
+      if (!bookingDoc.exists) {
+        console.error("Booking not found:", bookingId);
+        return res.status(404).json({ error: "Booking not found" });
+      }
       const booking = bookingDoc.data();
       if (!booking) return res.status(404).json({ error: "Booking data empty" });
 
+      console.log("Booking found for salon:", booking.salonId);
+
       // 1. Get salon details to find ownerId
       const salonDoc = await adminDb.collection("salons").doc(booking.salonId).get();
-      if (!salonDoc.exists) return res.status(404).json({ error: "Salon not found" });
+      if (!salonDoc.exists) {
+        console.error("Salon not found:", booking.salonId);
+        return res.status(404).json({ error: "Salon not found" });
+      }
       const salon = salonDoc.data();
       if (!salon) return res.status(404).json({ error: "Salon data empty" });
 
       const ownerId = salon.ownerId;
+      console.log("Salon owner ID:", ownerId);
 
       // 2. Get push subscription for owner
       const subDoc = await adminDb.collection("push_subscriptions").doc(ownerId).get();
       if (!subDoc.exists) {
+        console.log("No push subscription found for owner:", ownerId);
         return res.json({ status: "skipped", reason: "No push subscription for owner" });
       }
       const subscription = subDoc.data()?.subscription;
 
       if (subscription) {
+        console.log("Sending push notification to subscription:", JSON.stringify(subscription).substring(0, 50) + "...");
         const payload = JSON.stringify({
           title: "New Booking!",
           body: `You have a new booking request for ${salon.name}.`,
@@ -246,9 +258,11 @@ export async function createApp() {
         });
 
         await webpush.sendNotification(subscription, payload);
+        console.log("Push notification sent successfully to owner:", ownerId);
         return res.json({ status: "ok" });
       }
 
+      console.warn("Subscription data missing in document for owner:", ownerId);
       res.json({ status: "skipped", reason: "Subscription data missing" });
     } catch (error: any) {
       console.error("Trigger Notification Error:", error);
