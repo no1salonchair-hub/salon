@@ -388,10 +388,8 @@ export async function createApp() {
     }
   });
 
-  // Vite middleware for development (disabled in serverless)
-  const isServerless = !!(process.env.VERCEL || process.env.K_SERVICE || process.env.GAE_SERVICE);
-  
-  if (process.env.NODE_ENV !== "production" && !isServerless) {
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
     // Vite is handled in server.ts for local dev
   } else {
     const distPath = path.join(process.cwd(), "dist");

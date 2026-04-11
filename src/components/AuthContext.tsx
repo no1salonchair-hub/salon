@@ -43,18 +43,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isMounted = true;
     
     // Safety timeout to prevent infinite loading (e.g. if 3rd party cookies are blocked)
+    // We'll set a long timeout for the hard error, but let the UI handle the "taking long" state
     const safetyTimeout = setTimeout(() => {
       if (isMounted) {
         setLoading(prev => {
           if (prev) {
-            console.warn('AuthContext: Auth initialization timed out after 5s. Forcing loading to false.');
-            setError(new Error('Authentication is taking longer than expected. If you are using an incognito window or have third-party cookies blocked, please enable them for this site to work correctly.'));
+            console.warn('AuthContext: Auth initialization timed out after 20s. Forcing loading to false.');
+            setError(new Error('Authentication failed to initialize. This usually happens in incognito mode or when third-party cookies are blocked. Try clicking "Reload Application" or use the "Go to Login" button if it appeared.'));
             return false;
           }
           return prev;
         });
       }
-    }, 5000);
+    }, 20000);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');
@@ -130,8 +131,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Sign in button clicked');
     try {
       console.log('Attempting signInWithPopup...');
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
       console.log('Sign in successful');
+      // Explicitly set user if onAuthStateChanged is slow
+      setUser(result.user);
       toast.success('Signed in successfully!');
     } catch (error: any) {
       console.error('Sign in error:', error);

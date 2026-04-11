@@ -134,6 +134,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               Contact Us
             </NavLink>
             <span className="text-white/10">|</span>
+            <NavLink to="/faqs" className="text-white/40 hover:text-purple-600 text-[10px] uppercase tracking-widest transition-all">
+              FAQs
+            </NavLink>
+            <span className="text-white/10">|</span>
             <span className="text-white/40 text-[10px] uppercase tracking-widest">
               Terms of Service
             </span>

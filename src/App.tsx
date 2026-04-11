@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -19,6 +19,7 @@ const Payment = lazy(() => import('./pages/Payment').then(m => ({ default: m.Pay
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Privacy = lazy(() => import('./pages/Privacy').then(m => ({ default: m.Privacy })));
 const Contact = lazy(() => import('./pages/Contact').then(m => ({ default: m.Contact })));
+const FAQs = lazy(() => import('./pages/FAQs').then(m => ({ default: m.FAQs })));
 
 import { InstallPrompt } from './components/InstallPrompt';
 import { NotificationManager } from './components/NotificationManager';
@@ -74,7 +75,9 @@ const App: React.FC = () => {
     <HelmetProvider>
       <ErrorBoundary>
         <AuthProvider>
-          <AuthConsumer />
+          <Router>
+            <AuthConsumer />
+          </Router>
         </AuthProvider>
       </ErrorBoundary>
     </HelmetProvider>
@@ -83,7 +86,12 @@ const App: React.FC = () => {
 
 const AuthConsumer: React.FC = () => {
   const { loading, error } = useAuth();
+  const location = useLocation();
   const [showEmergency, setShowEmergency] = React.useState(false);
+  const [forceLogin, setForceLogin] = React.useState(false);
+
+  const publicRoutes = ['/login', '/privacy', '/contact', '/faqs'];
+  const isPublicRoute = publicRoutes.includes(location.pathname);
   
   React.useEffect(() => {
     if (loading) {
@@ -92,14 +100,14 @@ const AuthConsumer: React.FC = () => {
     }
   }, [loading]);
 
-  console.log('AuthConsumer: Rendering', { loading, hasError: !!error });
+  console.log('AuthConsumer: Rendering', { loading, hasError: !!error, forceLogin, isPublicRoute, path: location.pathname });
 
-  if (error) {
+  if (error && !isPublicRoute) {
     console.error('AuthConsumer: Auth error detected', error);
     throw error;
   }
 
-  if (loading) {
+  if (loading && !forceLogin && !isPublicRoute) {
     return (
       <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
@@ -107,16 +115,24 @@ const AuthConsumer: React.FC = () => {
         <p className="text-gray-500 text-sm animate-pulse mb-8">Initializing Application...</p>
         
         {showEmergency && (
-          <div className="animate-in fade-in duration-1000">
-            <p className="text-gray-500 text-xs mb-4 max-w-xs mx-auto">
-              This is taking longer than expected. It might be due to a slow connection or blocked third-party cookies.
+          <div className="animate-in fade-in duration-1000 space-y-4">
+            <p className="text-gray-500 text-xs mb-4 max-w-xs mx-auto leading-relaxed">
+              This is taking longer than expected. It might be due to a slow connection or blocked third-party cookies (common in incognito mode).
             </p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-white text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-all"
-            >
-              Reload App
-            </button>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 bg-white text-black rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-all w-full max-w-xs mx-auto"
+              >
+                Reload App
+              </button>
+              <button 
+                onClick={() => setForceLogin(true)}
+                className="px-6 py-3 bg-white/5 text-white border border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all w-full max-w-xs mx-auto"
+              >
+                Go to Login
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -124,7 +140,7 @@ const AuthConsumer: React.FC = () => {
   }
 
   return (
-    <Router>
+    <>
       <Suspense fallback={<LoadingSpinner />}>
         <AnimatePresence mode="wait">
           <Routes>
@@ -140,6 +156,7 @@ const AuthConsumer: React.FC = () => {
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/faqs" element={<FAQs />} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
@@ -148,7 +165,7 @@ const AuthConsumer: React.FC = () => {
       <Toaster position="top-center" expand={false} richColors />
       <InstallPrompt />
       <NotificationManager />
-    </Router>
+    </>
   );
 };
 
