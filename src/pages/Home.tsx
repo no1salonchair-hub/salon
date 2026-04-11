@@ -33,7 +33,7 @@ export const Home: React.FC = () => {
   const [error, setError] = useState<Error | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [distanceRange, setDistanceRange] = useState(5); // Default to 5km
+  const [distanceRange, setDistanceRange] = useState(1); // Default to 1km
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const navigate = useNavigate();
 
