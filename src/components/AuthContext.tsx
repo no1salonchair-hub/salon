@@ -7,19 +7,7 @@ import { UserProfile, UserRole } from '../types';
 import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
-// Connection test as per critical directive
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
-      toast.error("Firebase connection failed. Please check your configuration.");
-    }
-  }
-}
-testConnection();
-
+// AuthContext.tsx
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -41,6 +29,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('AuthContext: Initializing auth listener...');
     let isMounted = true;
+
+    // Connection test as per critical directive - moved inside useEffect to avoid blocking
+    const runConnectionTest = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+          toast.error("Firebase connection failed. Please check your configuration.");
+        }
+      }
+    };
+    runConnectionTest();
     
     // Safety timeout to prevent infinite loading (e.g. if 3rd party cookies are blocked)
     // We'll set a long timeout for the hard error, but let the UI handle the "taking long" state
@@ -71,6 +72,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         return;
       }
+
+      // Set loading to false as soon as we have a user to speed up initial render
+      // The profile will load in the background
+      setLoading(false);
 
       try {
         console.log(`AuthContext: User ${firebaseUser.uid} logged in, fetching profile...`);

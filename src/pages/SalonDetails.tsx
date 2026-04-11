@@ -43,9 +43,9 @@ export const SalonDetails: React.FC = () => {
   const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
 
   const timeSlots = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
-    '05:00 PM', '06:00 PM', '07:00 PM', '08:00 PM'
+    '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+    '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+    '05:00 PM', '05:30 PM', '06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM'
   ];
 
   const isPastSlot = (time: string) => {
@@ -54,9 +54,10 @@ export const SalonDetails: React.FC = () => {
     let hour = parseInt(hourStr);
     if (isPM && hour !== 12) hour += 12;
     if (!isPM && hour === 12) hour = 0;
+    const minutes = parseInt(minuteStr);
     
     const slotDate = new Date(selectedDate);
-    slotDate.setHours(hour, 0, 0, 0);
+    slotDate.setHours(hour, minutes, 0, 0);
     return slotDate < new Date();
   };
 
@@ -116,9 +117,10 @@ export const SalonDetails: React.FC = () => {
       let hour = parseInt(hourStr);
       if (isPM && hour !== 12) hour += 12;
       if (!isPM && hour === 12) hour = 0;
+      const minutes = parseInt(minuteStr);
 
       const bookingDate = new Date(selectedDate);
-      bookingDate.setHours(hour, 0, 0, 0);
+      bookingDate.setHours(hour, minutes, 0, 0);
 
       const bookingData: Omit<Booking, 'id'> = {
         userId: profile.uid,

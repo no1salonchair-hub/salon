@@ -23,28 +23,9 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 // Initialize Firestore with settings for better compatibility in iframes/restricted networks
-// We disable persistence as it often causes issues in sandboxed/iframe environments
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
   ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId || '(default)');
-
-// Connection test as per instructions
-async function testConnection() {
-  try {
-    console.log('Firebase: Testing connection to Firestore...');
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firebase: Connection test successful');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Firebase: Connection test failed - the client is offline. Please check your Firebase configuration.');
-    } else {
-      // Skip logging for other errors, as this is simply a connection test.
-      console.log('Firebase: Connection test completed with non-critical error (expected if test doc does not exist)');
-    }
-  }
-}
-testConnection();
 
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
