@@ -49,7 +49,7 @@ export const Dashboard: React.FC = () => {
             setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
             setLoading(false);
           }, (err) => {
-            console.error('Dashboard: Bookings onSnapshot error', err);
+            handleFirestoreError(err, OperationType.LIST, 'bookings');
             setError(err);
             setLoading(false);
           });
@@ -57,7 +57,7 @@ export const Dashboard: React.FC = () => {
           setLoading(false);
         }
       }, (err) => {
-        console.error('Dashboard: Salon onSnapshot error', err);
+        handleFirestoreError(err, OperationType.LIST, 'salons');
         setError(err);
         setLoading(false);
       });
@@ -72,7 +72,7 @@ export const Dashboard: React.FC = () => {
         setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
         setLoading(false);
       }, (err) => {
-        console.error('Dashboard: User bookings onSnapshot error', err);
+        handleFirestoreError(err, OperationType.LIST, 'bookings');
         setError(err);
         setLoading(false);
       });

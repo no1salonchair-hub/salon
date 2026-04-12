@@ -100,7 +100,7 @@ export const SalonDetails: React.FC = () => {
       setReviews(reviewData);
       setReviewsLoading(false);
     }, (err) => {
-      console.error('SalonDetails: reviews onSnapshot error', err);
+      handleFirestoreError(err, OperationType.LIST, `salons/${salonId}/reviews`);
       setReviewsLoading(false);
     });
 
@@ -126,6 +126,8 @@ export const SalonDetails: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
       setExistingBookings(bookings);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'bookings');
     });
 
     return () => unsubscribe();

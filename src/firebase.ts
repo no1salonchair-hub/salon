@@ -27,5 +27,18 @@ export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
+// Test connection to Firestore
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log('Firestore connection successful');
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+      console.error("Please check your Firebase configuration. Firestore is unreachable.");
+    }
+  }
+}
+testConnection().catch(err => console.error('Firestore connection test failed:', err));
+
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();

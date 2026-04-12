@@ -1,7 +1,32 @@
 import { auth } from '../firebase';
-import { OperationType, FirestoreErrorInfo } from '../types';
 
-export { OperationType };
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
@@ -22,6 +47,19 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  
+  const errorMessage = JSON.stringify(errInfo);
+  console.error('Firestore Error: ', errorMessage);
+  
+  // Only throw if it's a permission error, unavailable error, or if we want to trigger the error boundary
+  if (
+    errInfo.error.includes('permission-denied') || 
+    errInfo.error.includes('Missing or insufficient permissions') ||
+    errInfo.error.includes('unavailable') ||
+    errInfo.error.includes('offline')
+  ) {
+    throw new Error(errorMessage);
+  }
+  
+  return errInfo;
 }

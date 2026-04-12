@@ -86,7 +86,7 @@ export const Home: React.FC = () => {
       setSalons(salonData);
       setLoading(false);
     }, (err) => {
-      console.error('Home: onSnapshot error', err);
+      handleFirestoreError(err, OperationType.LIST, 'salons');
       setError(err);
       setLoading(false);
     });

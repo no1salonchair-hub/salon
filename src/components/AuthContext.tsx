@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     };
-    runConnectionTest();
+    runConnectionTest().catch(err => console.error('AuthContext: Connection test failed:', err));
     
     // Safety timeout to prevent infinite loading (e.g. if 3rd party cookies are blocked)
     // We'll set a long timeout for the hard error, but let the UI handle the "taking long" state
