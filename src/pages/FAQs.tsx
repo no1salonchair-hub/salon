@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { HelpCircle, ChevronDown, ChevronUp, Scissors, Calendar, CreditCard, Shield, Bell, User } from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp, Scissors, Calendar, CreditCard, Shield, Bell, User, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface FAQItemProps {
@@ -80,8 +80,18 @@ export const FAQs: React.FC = () => {
     },
     {
       icon: User,
-      question: "Can I cancel or reschedule a booking?",
-      answer: "Currently, you can view your booking details in the Dashboard. For cancellations or rescheduling, please contact the salon directly using the contact information provided in the booking details."
+      question: "Can a salon handle multiple bookings at the same time?",
+      answer: "Yes! Salons can add multiple barbers or staff members in their 'Salon Setup'. This allows the salon to accept concurrent bookings up to the number of barbers available."
+    },
+    {
+      icon: Scissors,
+      question: "How do I select a specific barber for my appointment?",
+      answer: "When booking a service, if the salon has multiple barbers listed, you will see a 'Select Barber' section after choosing your time slot. You can pick your preferred barber from the available list."
+    },
+    {
+      icon: Clock,
+      question: "What happens if all barbers are busy at my preferred time?",
+      answer: "If all barbers in a salon are already booked for a specific time slot, that slot will be automatically disabled to prevent overbooking. You can choose another time or check back later."
     },
     {
       icon: Shield,

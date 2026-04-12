@@ -4,12 +4,13 @@ import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield, Clock, Star } from 'lucide-react';
-import { Service, Salon } from '../types';
+import { Service, Salon, Barber } from '../types';
 import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { toast } from 'sonner';
 import { compressImage } from '../lib/image-utils';
+import { User } from 'lucide-react';
 
 export const SalonSetup: React.FC = () => {
   const { profile, updateProfile } = useAuth();
@@ -19,6 +20,8 @@ export const SalonSetup: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [newBarberName, setNewBarberName] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number; state?: string; city?: string; address?: string } | null>(null);
@@ -69,6 +72,7 @@ export const SalonSetup: React.FC = () => {
           const salonData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Salon;
           setSalonName(salonData.name);
           setServices(salonData.services);
+          setBarbers(salonData.barbers || []);
           setImagePreview(salonData.imageUrl);
           setLocation(salonData.location);
           setSelectedState(salonData.location.state || '');
@@ -162,6 +166,16 @@ export const SalonSetup: React.FC = () => {
     setServices(services.filter((_, i) => i !== idx));
   };
 
+  const addBarber = () => {
+    if (!newBarberName) return;
+    setBarbers([...barbers, { id: Math.random().toString(36).substr(2, 9), name: newBarberName }]);
+    setNewBarberName('');
+  };
+
+  const removeBarber = (id: string) => {
+    setBarbers(barbers.filter(b => b.id !== id));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
@@ -212,6 +226,7 @@ export const SalonSetup: React.FC = () => {
         const updates: Partial<Salon> = {
           name: salonName,
           services,
+          barbers,
           imageUrl,
           location: {
             ...location,
@@ -239,6 +254,7 @@ export const SalonSetup: React.FC = () => {
           ownerId: profile.uid,
           name: salonName,
           services,
+          barbers,
           imageUrl,
           location: {
             ...location!,
@@ -390,6 +406,53 @@ export const SalonSetup: React.FC = () => {
                   </div>
                 ))}
               </div>
+          </div>
+
+          {/* Barbers */}
+          <div className="space-y-4">
+            <label className="block text-sm font-bold uppercase tracking-widest text-white/40">Barbers / Staff</label>
+            <div className="flex gap-4">
+              <input
+                type="text"
+                value={newBarberName}
+                onChange={(e) => setNewBarberName(e.target.value)}
+                placeholder="Barber name"
+                className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder:text-white/20"
+              />
+              <button
+                type="button"
+                onClick={addBarber}
+                className="p-4 bg-purple-600 text-white rounded-2xl hover:bg-purple-500 transition-all shadow-lg shadow-purple-600/20"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {barbers.map((barber) => (
+                <div
+                  key={barber.id}
+                  className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center text-purple-400">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <span className="font-bold text-white">{barber.name}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeBarber(barber.id)}
+                    className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {barbers.length === 0 && (
+                <p className="text-xs text-white/20 italic p-2">No barbers added yet. You can still accept multiple bookings manually.</p>
+              )}
+            </div>
           </div>
 
           {/* Location Details */}

@@ -16,11 +16,18 @@ export interface Service {
   price: number;
 }
 
+export interface Barber {
+  id: string;
+  name: string;
+  specialty?: string;
+}
+
 export interface Salon {
   id: string;
   ownerId: string;
   name: string;
   services: Service[];
+  barbers?: Barber[];
   imageUrl: string;
   location: {
     lat: number;
@@ -42,6 +49,7 @@ export interface Booking {
   userId: string;
   salonId: string;
   services: string[];
+  barberName?: string;
   dateTime: Timestamp;
   status: 'pending' | 'accepted' | 'rejected' | 'completed';
   isRated?: boolean;

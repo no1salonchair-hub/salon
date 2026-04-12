@@ -282,6 +282,7 @@ export const Dashboard: React.FC = () => {
                         </div>
                         <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
                           {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
+                          {booking.barberName && <span className="ml-2 text-blue-400">• {booking.barberName}</span>}
                         </p>
                       </div>
                       <div className="flex gap-2 items-center">
@@ -342,6 +343,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                       <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
                         {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
+                        {booking.barberName && <span className="ml-2 text-blue-400">• {booking.barberName}</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -389,6 +391,7 @@ export const Dashboard: React.FC = () => {
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}</span>
+                          {booking.barberName && <span className="ml-2 text-blue-400">• {booking.barberName}</span>}
                         </div>
                         <div className="flex items-center gap-1">
                           <span className={cn(

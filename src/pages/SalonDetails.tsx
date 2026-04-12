@@ -4,7 +4,7 @@ import { doc, getDoc, addDoc, collection, Timestamp, query, where, orderBy, onSn
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { Salon, Service, Booking, Review } from '../types';
-import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2, XCircle, MessageSquare } from 'lucide-react';
+import { Scissors, MapPin, Star, Clock, ChevronLeft, Calendar, CheckCircle, Loader2, XCircle, MessageSquare, User } from 'lucide-react';
 import { format, addHours, startOfHour } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -22,6 +22,8 @@ export const SalonDetails: React.FC = () => {
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [selectedBarber, setSelectedBarber] = useState<string | null>(null);
+  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
 
   if (error) {
     throw error;
@@ -105,10 +107,62 @@ export const SalonDetails: React.FC = () => {
     return () => unsubscribe();
   }, [salonId, navigate]);
 
+  useEffect(() => {
+    if (!salonId || !selectedDate) return;
+
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(db, 'bookings'),
+      where('salonId', '==', salonId),
+      where('dateTime', '>=', Timestamp.fromDate(startOfDay)),
+      where('dateTime', '<=', Timestamp.fromDate(endOfDay)),
+      where('status', 'in', ['pending', 'accepted'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
+      setExistingBookings(bookings);
+    });
+
+    return () => unsubscribe();
+  }, [salonId, selectedDate]);
+
   const isExpired = salon?.subscriptionExpiry ? salon.subscriptionExpiry.toDate() < new Date() : false;
+
+  const getBarberAvailability = (time: string) => {
+    if (!salon?.barbers || salon.barbers.length === 0) return { available: true, busyBarbers: [] };
+
+    const [hourStr, minuteStr] = time.split(':');
+    const isPM = time.includes('PM');
+    let hour = parseInt(hourStr);
+    if (isPM && hour !== 12) hour += 12;
+    if (!isPM && hour === 12) hour = 0;
+    const minutes = parseInt(minuteStr);
+
+    const slotTime = new Date(selectedDate);
+    slotTime.setHours(hour, minutes, 0, 0);
+
+    const busyBarbers = existingBookings
+      .filter(b => b.dateTime.toMillis() === slotTime.getTime())
+      .map(b => b.barberName)
+      .filter(Boolean);
+
+    return {
+      available: busyBarbers.length < salon.barbers.length,
+      busyBarbers
+    };
+  };
 
   const handleBooking = async () => {
     if (!profile || !salon || selectedServices.length === 0 || !selectedTime || isExpired) return;
+    if (salon.barbers && salon.barbers.length > 0 && !selectedBarber) {
+      toast.error('Please select a barber');
+      return;
+    }
 
     setBookingLoading(true);
     try {
@@ -126,6 +180,7 @@ export const SalonDetails: React.FC = () => {
         userId: profile.uid,
         salonId: salon.id,
         services: selectedServices.map(s => s.name),
+        barberName: selectedBarber || undefined,
         dateTime: Timestamp.fromDate(bookingDate),
         status: 'pending',
         createdAt: Timestamp.now(),
@@ -372,15 +427,21 @@ export const SalonDetails: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   {timeSlots.map((time) => {
                     const past = isPastSlot(time);
+                    const { available } = getBarberAvailability(time);
                     const isSelected = selectedTime === time;
+                    const disabled = past || !available;
+
                     return (
                       <button
                         key={time}
-                        disabled={past}
-                        onClick={() => setSelectedTime(time)}
+                        disabled={disabled}
+                        onClick={() => {
+                          setSelectedTime(time);
+                          setSelectedBarber(null); // Reset barber when time changes
+                        }}
                         className={cn(
                           "py-3 rounded-xl text-xs font-bold transition-all border",
-                          past ? "bg-white/5 border-white/5 text-white/10 cursor-not-allowed" :
+                          disabled ? "bg-white/5 border-white/5 text-white/10 cursor-not-allowed" :
                           isSelected ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20" :
                           "bg-white/5 border-white/10 text-white/60 hover:border-white/20"
                         )}
@@ -392,7 +453,44 @@ export const SalonDetails: React.FC = () => {
                 </div>
               </div>
 
+              {selectedTime && salon.barbers && salon.barbers.length > 0 && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-3">Select Barber</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {salon.barbers.map((barber) => {
+                      const { busyBarbers } = getBarberAvailability(selectedTime);
+                      const isBusy = busyBarbers.includes(barber.name);
+                      const isSelected = selectedBarber === barber.name;
+
+                      return (
+                        <button
+                          key={barber.id}
+                          disabled={isBusy}
+                          onClick={() => setSelectedBarber(barber.name)}
+                          className={cn(
+                            "p-3 rounded-xl text-xs font-bold transition-all border flex flex-col items-center gap-1",
+                            isBusy ? "bg-white/5 border-white/5 text-white/10 cursor-not-allowed" :
+                            isSelected ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20" :
+                            "bg-white/5 border-white/10 text-white/60 hover:border-white/20"
+                          )}
+                        >
+                          <User className={cn("w-4 h-4", isSelected ? "text-white" : "text-blue-400")} />
+                          {barber.name}
+                          {isBusy && <span className="text-[8px] uppercase opacity-50">Busy</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="pt-4 border-t border-white/10 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/40">Barber</span>
+                  <span className="font-bold text-white">
+                    {selectedBarber || 'Not selected'}
+                  </span>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-white/40">Services</span>
                   <span className="font-bold text-right truncate ml-4 text-white">
@@ -418,7 +516,7 @@ export const SalonDetails: React.FC = () => {
               </div>
 
               <button
-                disabled={selectedServices.length === 0 || !selectedTime || bookingLoading || isExpired}
+                disabled={selectedServices.length === 0 || !selectedTime || (salon.barbers && salon.barbers.length > 0 && !selectedBarber) || bookingLoading || isExpired}
                 onClick={handleBooking}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-black text-lg shadow-xl shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >

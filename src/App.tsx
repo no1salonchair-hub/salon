@@ -91,7 +91,7 @@ const AuthConsumer: React.FC = () => {
   const [forceLogin, setForceLogin] = React.useState(false);
 
   const publicRoutes = ['/login', '/privacy', '/contact', '/faqs'];
-  const isPublicRoute = publicRoutes.includes(location.pathname);
+  const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
   
   React.useEffect(() => {
     if (loading) {
