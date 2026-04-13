@@ -37,6 +37,8 @@ export interface Salon {
     address?: string;
   };
   status: 'pending' | 'active' | 'hidden';
+  imageStatus?: 'pending' | 'authorized_by_ai' | 'rejected_by_ai';
+  adminAuthorized?: boolean;
   subscriptionPlan?: 'monthly' | 'yearly';
   subscriptionExpiry: Timestamp;
   averageRating?: number;

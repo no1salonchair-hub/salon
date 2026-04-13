@@ -23,44 +23,54 @@ export const BookingDetails: React.FC = () => {
   useEffect(() => {
     if (!bookingId || !profile) return;
 
+    let unsubscribeMessages: (() => void) | undefined;
+
     // Fetch Booking
-    const unsubscribeBooking = onSnapshot(doc(db, 'bookings', bookingId), async (snapshot) => {
-      if (snapshot.exists()) {
-        const bookingData = { id: snapshot.id, ...snapshot.data() } as Booking;
-        setBooking(bookingData);
+    const unsubscribeBooking = onSnapshot(doc(db, 'bookings', bookingId), (snapshot) => {
+      const processSnapshot = async () => {
+        if (snapshot.exists()) {
+          const bookingData = { id: snapshot.id, ...snapshot.data() } as Booking;
+          setBooking(bookingData);
 
-        // Fetch Salon
-        try {
-          const salonDoc = await getDoc(doc(db, 'salons', bookingData.salonId));
-          if (salonDoc.exists()) {
-            setSalon({ id: salonDoc.id, ...salonDoc.data() } as Salon);
+          // Fetch Salon
+          try {
+            const salonDoc = await getDoc(doc(db, 'salons', bookingData.salonId));
+            if (salonDoc.exists()) {
+              setSalon({ id: salonDoc.id, ...salonDoc.data() } as Salon);
+            }
+          } catch (error) {
+            handleFirestoreError(error, OperationType.GET, `salons/${bookingData.salonId}`);
           }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `salons/${bookingData.salonId}`);
-        }
 
-        // Fetch Messages
-        const qMessages = query(
-          collection(db, 'bookings', bookingId, 'messages'),
-          orderBy('timestamp', 'asc')
-        );
-        const unsubscribeMessages = onSnapshot(qMessages, (msgSnapshot) => {
-          setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[]);
+          // Fetch Messages if not already subscribed
+          if (!unsubscribeMessages) {
+            const qMessages = query(
+              collection(db, 'bookings', bookingId, 'messages'),
+              orderBy('timestamp', 'asc')
+            );
+            unsubscribeMessages = onSnapshot(qMessages, (msgSnapshot) => {
+              setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[]);
+              setLoading(false);
+            }, (error) => {
+              handleFirestoreError(error, OperationType.LIST, `bookings/${bookingId}/messages`);
+            });
+          }
+        } else {
           setLoading(false);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, `bookings/${bookingId}/messages`);
-        });
-
-        return () => unsubscribeMessages();
-      } else {
-        setLoading(false);
-        navigate('/dashboard');
-      }
+          navigate('/dashboard');
+        }
+      };
+      processSnapshot().catch(err => {
+        console.error('BookingDetails: snapshot processing error', err);
+      });
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `bookings/${bookingId}`);
     });
 
-    return () => unsubscribeBooking();
+    return () => {
+      unsubscribeBooking();
+      if (unsubscribeMessages) unsubscribeMessages();
+    };
   }, [bookingId, profile, navigate]);
 
   useEffect(() => {

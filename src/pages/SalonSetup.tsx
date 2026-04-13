@@ -10,7 +10,8 @@ import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { toast } from 'sonner';
 import { compressImage } from '../lib/image-utils';
-import { User } from 'lucide-react';
+import { User, Info } from 'lucide-react';
+import { moderateSalonImage } from '../services/moderationService';
 
 export const SalonSetup: React.FC = () => {
   const { profile, updateProfile } = useAuth();
@@ -24,6 +25,8 @@ export const SalonSetup: React.FC = () => {
   const [newBarberName, setNewBarberName] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageStatus, setImageStatus] = useState<'pending' | 'authorized_by_ai' | 'rejected_by_ai'>('pending');
+  const [adminAuthorized, setAdminAuthorized] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number; state?: string; city?: string; address?: string } | null>(null);
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -74,6 +77,8 @@ export const SalonSetup: React.FC = () => {
           setServices(salonData.services);
           setBarbers(salonData.barbers || []);
           setImagePreview(salonData.imageUrl);
+          setImageStatus(salonData.imageStatus || 'pending');
+          setAdminAuthorized(salonData.adminAuthorized || false);
           setLocation(salonData.location);
           setSelectedState(salonData.location.state || '');
           setSelectedCity(salonData.location.city || '');
@@ -88,8 +93,6 @@ export const SalonSetup: React.FC = () => {
         try {
           handleFirestoreError(error, OperationType.GET, 'salons');
         } catch (e: any) {
-          // If handleFirestoreError throws (which it does), it will be caught by the ErrorBoundary
-          // but we catch it here to avoid unhandled rejection
           throw e;
         }
       }
@@ -144,11 +147,12 @@ export const SalonSetup: React.FC = () => {
     if (!file) return;
 
     try {
-      // Browser-side image compression
       const compressedBlob = await compressImage(file);
       const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
       setImage(compressedFile);
       setImagePreview(URL.createObjectURL(compressedFile));
+      // Reset status when new image is selected
+      setImageStatus('pending');
     } catch (error) {
       console.error('Error compressing image:', error);
       toast.error('Failed to process image');
@@ -195,24 +199,40 @@ export const SalonSetup: React.FC = () => {
 
     setLoading(true);
     console.log('Starting salon setup/update process...');
-    const toastId = toast.loading(profile.role === 'salon_owner' ? 'Updating your salon...' : 'Setting up your salon...');
+    const toastId = toast.loading('Processing your salon details...');
     
     try {
       let imageUrl = imagePreview || '';
+      let currentImageStatus = imageStatus;
       
       if (image) {
-        console.log('New image selected, converting to base64...');
-        imageUrl = await new Promise<string>((resolve, reject) => {
+        console.log('New image selected, moderating with AI...');
+        toast.loading('Analyzing image with AI...', { id: toastId });
+        
+        const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(image);
         });
+        
+        const moderation = await moderateSalonImage(base64);
+        console.log('Moderation result:', moderation);
+        
+        if (!moderation.isSafe) {
+          toast.error('Image rejected: ' + moderation.reason, { id: toastId });
+          setLoading(false);
+          return;
+        }
+        
+        imageUrl = base64;
+        currentImageStatus = moderation.isValid ? 'authorized_by_ai' : 'rejected_by_ai';
+        
+        if (!moderation.isValid) {
+          toast.warning('Image might not be a salon. Admin will review.', { duration: 5000 });
+        }
       }
       
-      if (!imageUrl) throw new Error('No image selected');
-      
-      console.log('Image processed successfully.');
       toast.loading(profile.role === 'salon_owner' ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
 
       // Check if salon already exists
@@ -222,7 +242,6 @@ export const SalonSetup: React.FC = () => {
       if (!snapshot.empty) {
         // Update existing salon
         const salonId = snapshot.docs[0].id;
-        console.log('Updating existing salon document:', salonId);
         const updates: Partial<Salon> = {
           name: salonName,
           services,
@@ -234,19 +253,17 @@ export const SalonSetup: React.FC = () => {
             city: selectedCity,
             address: address,
           },
-          status: 'pending',
+          status: 'pending', // Reset to pending on update
+          imageStatus: currentImageStatus,
           subscriptionPlan,
         };
         await updateDoc(doc(db, 'salons', salonId), updates);
-        console.log('Salon document updated successfully.');
       } else {
         // Create new salon
-        console.log('Creating new salon document in Firestore...');
         const subscriptionExpiry = new Date();
         if (subscriptionPlan === 'monthly') {
           subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 30);
         } else {
-          // yearly plan
           subscriptionExpiry.setDate(subscriptionExpiry.getDate() + 365);
         }
 
@@ -263,29 +280,24 @@ export const SalonSetup: React.FC = () => {
             address: address,
           },
           status: 'pending',
+          imageStatus: currentImageStatus,
+          adminAuthorized: false,
           subscriptionPlan,
           subscriptionExpiry: Timestamp.fromDate(subscriptionExpiry),
           createdAt: Timestamp.now(),
         };
-        const docRef = await addDoc(collection(db, 'salons'), salonData);
-        console.log('Salon document created with ID:', docRef.id);
+        await addDoc(collection(db, 'salons'), salonData);
       }
       
-      toast.success(profile.role === 'salon_owner' ? 'Salon updated successfully!' : 'Salon setup complete!', { id: toastId });
+      toast.success('Salon details saved! Authorization may take up to 24 hours.', { id: toastId, duration: 6000 });
       
-      // If it's a new setup OR the salon is pending, go to payment. If it's an active update, go to dashboard.
-      if (profile.role === 'salon_owner' && salonStatus === 'active') {
-        navigate('/dashboard');
-      } else {
-        // Update role first if needed, then navigate to payment
-        if (profile.role !== 'salon_owner') {
-          await updateProfile({ role: 'salon_owner' });
-        }
-        navigate('/payment');
+      if (profile.role !== 'salon_owner') {
+        await updateProfile({ role: 'salon_owner' });
       }
+      navigate('/payment');
     } catch (error) {
       console.error('Error during salon setup/update:', error);
-      toast.error('Failed to save salon details. Please try again.', { id: toastId });
+      toast.error('Failed to save salon details.', { id: toastId });
       handleFirestoreError(error, profile.role === 'salon_owner' ? OperationType.UPDATE : OperationType.CREATE, 'salons');
     } finally {
       setLoading(false);
@@ -294,9 +306,7 @@ export const SalonSetup: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-4">
-      <div
-        className="bg-white/5 border border-white/10 rounded-3xl p-8 shadow-xl"
-      >
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-8 shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center text-white">
             <Scissors className="w-6 h-6" />
@@ -304,16 +314,19 @@ export const SalonSetup: React.FC = () => {
           <div>
             <h1 className="text-3xl font-black text-white">Setup Your Salon</h1>
             <p className="text-white/60">Join the marketplace and start receiving bookings.</p>
-            {profile.role === 'salon_owner' && (
-              <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center gap-3">
-                <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center text-yellow-500">
-                  <Shield className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest leading-relaxed">
-                  Note: Any changes to your salon details will require re-authorization by the admin before appearing in search results.
-                </p>
-              </div>
-            )}
+          </div>
+        </div>
+
+        <div className="mb-8 p-6 bg-blue-600/10 border border-blue-600/20 rounded-3xl flex items-start gap-4">
+          <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 shrink-0">
+            <Info className="w-6 h-6" />
+          </div>
+          <div>
+            <h4 className="text-blue-400 font-bold uppercase tracking-widest text-sm mb-1">Authorization Notice</h4>
+            <p className="text-blue-400/60 text-sm leading-relaxed">
+              To ensure quality and safety, all salon listings and images are moderated. 
+              <strong> It may take up to 24 hours for your salon to be authorized and visible in the marketplace.</strong>
+            </p>
           </div>
         </div>
 
@@ -357,6 +370,17 @@ export const SalonSetup: React.FC = () => {
               )}
             </div>
             <input id="image-upload" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+            
+            {imageStatus === 'authorized_by_ai' && (
+              <p className="text-green-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                <Shield className="w-3 h-3" /> AI Authorized
+              </p>
+            )}
+            {imageStatus === 'rejected_by_ai' && (
+              <p className="text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                <Trash2 className="w-3 h-3" /> AI Flagged for Review
+              </p>
+            )}
           </div>
 
           {/* Services */}

@@ -43,6 +43,8 @@ service cloud.firestore {
              (!('averageRating' in doc) || doc.averageRating is number) &&
              (!('reviewCount' in doc) || doc.reviewCount is number) &&
              (!('subscriptionPlan' in doc) || doc.subscriptionPlan in ['monthly', 'yearly']) &&
+             (!('imageStatus' in doc) || doc.imageStatus in ['pending', 'authorized_by_ai', 'rejected_by_ai']) &&
+             (!('adminAuthorized' in doc) || doc.adminAuthorized is bool) &&
              (!('updatedAt' in doc) || doc.updatedAt is timestamp) &&
              (!('createdAt' in doc) || doc.createdAt is timestamp);
     }

@@ -61,32 +61,37 @@ export const AdminPanel: React.FC = () => {
 
     const unsubscribeSalons = onSnapshot(
       query(collection(db, 'salons'), orderBy('createdAt', 'desc')),
-      async (snapshot) => {
-        const salonList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Salon[];
-        setSalons(salonList);
+      (snapshot) => {
+        const processSalons = async () => {
+          const salonList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Salon[];
+          setSalons(salonList);
 
-        // Fetch user profiles for salon owners
-        const ownerIds = [...new Set(salonList.map(s => s.ownerId))];
-        const newUsers = { ...users };
-        let updated = false;
+          // Fetch user profiles for salon owners
+          const ownerIds = [...new Set(salonList.map(s => s.ownerId))];
+          const newUsers = { ...users };
+          let updated = false;
 
-        for (const ownerId of ownerIds) {
-          if (!newUsers[ownerId]) {
-            try {
-              const userSnap = await getDoc(doc(db, 'users', ownerId));
-              if (userSnap.exists()) {
-                newUsers[ownerId] = userSnap.data() as UserProfile;
-                updated = true;
+          for (const ownerId of ownerIds) {
+            if (!newUsers[ownerId]) {
+              try {
+                const userSnap = await getDoc(doc(db, 'users', ownerId));
+                if (userSnap.exists()) {
+                  newUsers[ownerId] = userSnap.data() as UserProfile;
+                  updated = true;
+                }
+              } catch (error) {
+                console.error('Error fetching owner profile:', error);
               }
-            } catch (error) {
-              console.error('Error fetching owner profile:', error);
             }
           }
-        }
 
-        if (updated) {
-          setUsers(newUsers);
-        }
+          if (updated) {
+            setUsers(newUsers);
+          }
+        };
+        processSalons().catch(err => {
+          console.error('AdminPanel: salons snapshot processing error', err);
+        });
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, 'salons');
@@ -116,7 +121,20 @@ export const AdminPanel: React.FC = () => {
     try {
       await updateDoc(doc(db, 'salons', salonId), {
         status: 'active',
+        adminAuthorized: true,
         subscriptionExpiry: Timestamp.fromDate(addDays(new Date(), 30)),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  };
+
+  const setAdminAuthorization = async (salonId: string, authorized: boolean) => {
+    const path = `salons/${salonId}`;
+    try {
+      await updateDoc(doc(db, 'salons', salonId), {
+        adminAuthorized: authorized,
+        status: authorized ? 'active' : 'pending'
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
@@ -327,6 +345,7 @@ export const AdminPanel: React.FC = () => {
                   <tr className="bg-white/5 border-b border-white/10">
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Salon</th>
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">AI Moderation</th>
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Owner</th>
                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40 text-right">Actions</th>
                   </tr>
@@ -337,7 +356,14 @@ export const AdminPanel: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <img src={salon.imageUrl} alt={salon.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
-                          <span className="font-bold text-white">{salon.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white">{salon.name}</span>
+                            {salon.adminAuthorized && (
+                              <span className="text-[8px] text-blue-400 font-black uppercase tracking-widest flex items-center gap-1">
+                                <ShieldCheck className="w-2 h-2" /> Admin Authorized
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -348,6 +374,15 @@ export const AdminPanel: React.FC = () => {
                           salon.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
                         )}>
                           {salon.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date() ? 'expired' : salon.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                          salon.imageStatus === 'authorized_by_ai' ? "bg-green-500/20 text-green-400" : 
+                          salon.imageStatus === 'rejected_by_ai' ? "bg-red-500/20 text-red-400" : "bg-white/10 text-white/40"
+                        )}>
+                          {salon.imageStatus || 'pending'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -364,11 +399,28 @@ export const AdminPanel: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {salon.adminAuthorized ? (
+                            <button
+                              onClick={() => setAdminAuthorization(salon.id, false)}
+                              className="p-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-all border border-red-500/20 shadow-sm"
+                              title="Unauthorize"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setAdminAuthorization(salon.id, true)}
+                              className="p-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-all border border-blue-500/20 shadow-sm"
+                              title="Authorize"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
                           {salon.status === 'pending' && (
                             <button
                               onClick={() => approveSalon(salon.id)}
                               className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all shadow-sm"
-                              title="Approve"
+                              title="Approve & Activate"
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>

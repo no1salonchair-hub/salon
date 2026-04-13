@@ -43,6 +43,8 @@
           }
         },
         "status": { "type": "string", "enum": ["pending", "active", "hidden"], "description": "Salon approval status" },
+        "imageStatus": { "type": "string", "enum": ["pending", "authorized_by_ai", "rejected_by_ai"], "description": "AI image moderation status" },
+        "adminAuthorized": { "type": "boolean", "description": "Whether the admin has manually authorized the salon" },
         "subscriptionExpiry": { "type": "string", "format": "date-time", "description": "When the subscription expires" },
         "averageRating": { "type": "number", "description": "Average rating of the salon" },
         "reviewCount": { "type": "integer", "description": "Total number of reviews" },
