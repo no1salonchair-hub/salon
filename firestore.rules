@@ -137,5 +137,9 @@ service cloud.firestore {
                     request.resource.data.salonId == resource.data.salonId;
       allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
     }
+
+    match /push_subscriptions/{userId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

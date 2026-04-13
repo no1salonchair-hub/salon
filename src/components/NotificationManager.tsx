@@ -82,7 +82,7 @@ export const NotificationManager: React.FC = () => {
         if (!response.ok) {
           const errorData = await response.json();
           console.error('Server error details:', errorData);
-          throw new Error(errorData.error || 'Failed to save subscription');
+          throw new Error(errorData.details || errorData.error || 'Failed to save subscription');
         }
         
         console.log('Subscription saved to server successfully');

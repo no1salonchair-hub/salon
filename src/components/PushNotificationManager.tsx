@@ -91,7 +91,7 @@ export const PushNotificationManager: React.FC = () => {
         toast.success('Notifications enabled! You will receive alerts for new bookings.');
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save subscription on server');
+        throw new Error(errorData.details || errorData.error || 'Failed to save subscription on server');
       }
     } catch (error: any) {
       console.error('Error subscribing to push:', error);

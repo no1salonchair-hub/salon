@@ -125,6 +125,7 @@
     "/bookings/{bookingId}": { "schema": "Booking", "description": "Salon bookings" },
     "/bookings/{bookingId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages for a booking" },
     "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" },
-    "/reviews/{reviewId}": { "schema": "Review", "description": "Salon reviews" }
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Salon reviews" },
+    "/push_subscriptions/{userId}": { "schema": "object", "description": "Push notification subscriptions" }
   }
 }
