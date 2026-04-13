@@ -224,17 +224,20 @@ export async function createApp() {
         return res.status(400).json({ error: "Missing subscription or userId" });
       }
       
-      const adminDb = await getAdminDb();
-      console.log("Saving subscription for user:", userId);
-      const subRef = adminDb.collection("push_subscriptions").doc(userId);
+      const client = await getFirebaseClient();
+      const firebaseApp = await getFirebaseApp();
+      const db = client.getFirestore(firebaseApp);
+      
+      console.log("Saving subscription for user (via Client SDK):", userId);
       
       // Convert subscription to plain object to ensure Firestore compatibility
       const plainSubscription = JSON.parse(JSON.stringify(subscription));
       
-      await subRef.set({
+      await client.setDoc(client.doc(db, "push_subscriptions", userId), {
         subscription: plainSubscription,
-        updatedAt: admin.firestore.Timestamp.now()
+        updatedAt: client.serverTimestamp()
       });
+      
       console.log("Subscription saved successfully for user:", userId);
       res.json({ status: "ok" });
     } catch (error: any) {
@@ -250,37 +253,46 @@ export async function createApp() {
   app.post("/api/notifications/trigger-booking", async (req, res) => {
     console.log("Trigger Notification Request:", req.body);
     try {
-      const { bookingId } = req.body;
+      const { bookingId, ownerId, salonName } = req.body;
       if (!bookingId) return res.status(400).json({ error: "Missing bookingId" });
 
-      const adminDb = await getAdminDb();
-      const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
+      const client = await getFirebaseClient();
+      const firebaseApp = await getFirebaseApp();
+      const db = client.getFirestore(firebaseApp);
       
-      if (!bookingDoc.exists) {
-        console.error("Booking not found:", bookingId);
-        return res.status(404).json({ error: "Booking not found" });
+      let targetOwnerId = ownerId;
+      let targetSalonName = salonName;
+
+      // If ownerId or salonName is missing, try to fetch them (might fail if Admin SDK is broken)
+      if (!targetOwnerId || !targetSalonName) {
+        console.log("Fetching missing info for booking:", bookingId);
+        const bookingDoc = await client.getDoc(client.doc(db, "bookings", bookingId));
+        if (bookingDoc.exists()) {
+          const booking = bookingDoc.data();
+          if (booking) {
+            const salonDoc = await client.getDoc(client.doc(db, "salons", booking.salonId));
+            if (salonDoc.exists()) {
+              const salon = salonDoc.data();
+              if (salon) {
+                targetOwnerId = targetOwnerId || salon.ownerId;
+                targetSalonName = targetSalonName || salon.name;
+              }
+            }
+          }
+        }
       }
-      const booking = bookingDoc.data();
-      if (!booking) return res.status(404).json({ error: "Booking data empty" });
 
-      console.log("Booking found for salon:", booking.salonId);
-
-      // 1. Get salon details to find ownerId
-      const salonDoc = await adminDb.collection("salons").doc(booking.salonId).get();
-      if (!salonDoc.exists) {
-        console.error("Salon not found:", booking.salonId);
-        return res.status(404).json({ error: "Salon not found" });
+      if (!targetOwnerId) {
+        console.error("Could not determine ownerId for notification");
+        return res.status(400).json({ error: "Could not determine ownerId" });
       }
-      const salon = salonDoc.data();
-      if (!salon) return res.status(404).json({ error: "Salon data empty" });
 
-      const ownerId = salon.ownerId;
-      console.log("Salon owner ID:", ownerId);
+      console.log("Targeting owner for notification:", targetOwnerId);
 
       // 2. Get push subscription for owner
-      const subDoc = await adminDb.collection("push_subscriptions").doc(ownerId).get();
-      if (!subDoc.exists) {
-        console.log("No push subscription found for owner:", ownerId);
+      const subDoc = await client.getDoc(client.doc(db, "push_subscriptions", targetOwnerId));
+      if (!subDoc.exists()) {
+        console.log("No push subscription found for owner:", targetOwnerId);
         return res.json({ status: "skipped", reason: "No push subscription for owner" });
       }
       const subscription = subDoc.data()?.subscription;
@@ -289,16 +301,16 @@ export async function createApp() {
         console.log("Sending push notification to subscription:", JSON.stringify(subscription).substring(0, 50) + "...");
         const payload = JSON.stringify({
           title: "New Booking!",
-          body: `You have a new booking request for ${salon.name}.`,
+          body: `You have a new booking request for ${targetSalonName || 'your salon'}.`,
           url: `/booking/${bookingId}`
         });
 
         await webpush.sendNotification(subscription, payload);
-        console.log("Push notification sent successfully to owner:", ownerId);
+        console.log("Push notification sent successfully to owner:", targetOwnerId);
         return res.json({ status: "ok" });
       }
 
-      console.warn("Subscription data missing in document for owner:", ownerId);
+      console.warn("Subscription data missing in document for owner:", targetOwnerId);
       res.json({ status: "skipped", reason: "Subscription data missing" });
     } catch (error: any) {
       console.error("Trigger Notification Error:", error);

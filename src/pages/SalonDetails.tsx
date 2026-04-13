@@ -195,7 +195,11 @@ export const SalonDetails: React.FC = () => {
         await fetch('/api/notifications/trigger-booking', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: docRef.id })
+          body: JSON.stringify({ 
+            bookingId: docRef.id,
+            ownerId: salon.ownerId,
+            salonName: salon.name
+          })
         });
       } catch (err) {
         console.error('Failed to trigger notification:', err);

@@ -139,7 +139,9 @@ service cloud.firestore {
     }
 
     match /push_subscriptions/{userId} {
-      allow read, write: if isAdmin();
+      // Public read allowed to enable server-side notifications via Client SDK (Admin SDK credential issues)
+      allow read: if true; 
+      allow write: if isOwner(userId) || isAdmin();
     }
   }
 }

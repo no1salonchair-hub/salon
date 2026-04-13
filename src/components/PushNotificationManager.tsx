@@ -78,21 +78,18 @@ export const PushNotificationManager: React.FC = () => {
         applicationServerKey: urlBase64ToUint8Array(vapidKey)
       });
 
-      // Send to backend
+      // Save to Firestore directly
       const subscriptionData = JSON.parse(JSON.stringify(subscription));
-      const response = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription: subscriptionData, userId: profile.uid })
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      await setDoc(doc(db, 'push_subscriptions', profile.uid), {
+        subscription: subscriptionData,
+        updatedAt: serverTimestamp()
       });
 
-      if (response.ok) {
-        setIsSubscribed(true);
-        toast.success('Notifications enabled! You will receive alerts for new bookings.');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Failed to save subscription on server');
-      }
+      setIsSubscribed(true);
+      toast.success('Notifications enabled! You will receive alerts for new bookings.');
     } catch (error: any) {
       console.error('Error subscribing to push:', error);
       toast.error(`Failed to enable notifications: ${error.message}`);
