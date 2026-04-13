@@ -44,17 +44,26 @@ async function getAdminDb() {
       const configPath = path.join(process.cwd(), "firebase-applet-config.json");
       if (fs.existsSync(configPath)) {
         firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        console.log("Loaded firebase-applet-config.json for Admin SDK");
+        console.log("Loaded firebase-applet-config.json for Admin SDK:", firebaseConfig.projectId);
+      } else {
+        console.warn("firebase-applet-config.json not found");
       }
     } catch (e) {
       console.error("Error loading firebase-applet-config.json:", e);
     }
 
+    const projectId = firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+    
     try {
-      admin.initializeApp({
-        projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID
-      });
-      console.log("Admin SDK initialized successfully with project ID:", admin.app().options.projectId);
+      if (projectId) {
+        admin.initializeApp({
+          projectId: projectId
+        });
+        console.log("Admin SDK initialized with project ID:", projectId);
+      } else {
+        admin.initializeApp();
+        console.log("Admin SDK initialized with default credentials");
+      }
     } catch (e) {
       console.error("Admin SDK initialization failed:", e);
     }
@@ -70,8 +79,14 @@ async function getAdminDb() {
     }
   } catch (e) {}
 
-  _adminDb = getFirestore(admin.app(), firestoreDatabaseId === "(default)" ? undefined : firestoreDatabaseId);
-  return _adminDb;
+  console.log("Using Firestore Database ID:", firestoreDatabaseId);
+  try {
+    _adminDb = getFirestore(admin.app(), firestoreDatabaseId === "(default)" ? undefined : firestoreDatabaseId);
+    return _adminDb;
+  } catch (e) {
+    console.error("Failed to get Firestore instance:", e);
+    throw e;
+  }
 }
 
 async function getFirebaseClient() {
@@ -201,11 +216,11 @@ export async function createApp() {
   });
 
   app.post("/api/notifications/subscribe", async (req, res) => {
-    console.log("Subscribe Request Body:", JSON.stringify(req.body).substring(0, 100) + "...");
+    console.log("Subscribe Request Body:", JSON.stringify(req.body).substring(0, 200) + "...");
     try {
       const { subscription, userId } = req.body;
       if (!subscription || !userId) {
-        console.warn("Missing subscription or userId in request");
+        console.warn("Missing subscription or userId in request:", { hasSub: !!subscription, userId });
         return res.status(400).json({ error: "Missing subscription or userId" });
       }
       
@@ -213,15 +228,22 @@ export async function createApp() {
       console.log("Saving subscription for user:", userId);
       const subRef = adminDb.collection("push_subscriptions").doc(userId);
       
+      // Convert subscription to plain object to ensure Firestore compatibility
+      const plainSubscription = JSON.parse(JSON.stringify(subscription));
+      
       await subRef.set({
-        subscription,
+        subscription: plainSubscription,
         updatedAt: admin.firestore.Timestamp.now()
       });
       console.log("Subscription saved successfully for user:", userId);
       res.json({ status: "ok" });
     } catch (error: any) {
       console.error("Subscribe Error:", error);
-      res.status(500).json({ error: "Failed to save subscription", details: error.message });
+      res.status(500).json({ 
+        error: "Failed to save subscription", 
+        details: error.message,
+        code: error.code
+      });
     }
   });
 

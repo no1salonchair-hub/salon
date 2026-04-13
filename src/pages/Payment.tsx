@@ -125,6 +125,26 @@ export const Payment: React.FC = () => {
         prefill: {
           name: profile.name || '',
           email: profile.email || '',
+          contact: '9999999999', // Placeholder to skip contact details screen
+        },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay via UPI QR",
+                instruments: [
+                  {
+                    method: "upi",
+                    upi_type: "qr"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.upi"],
+            preferences: {
+              show_default_blocks: true // Keep other methods available but prioritize UPI QR
+            }
+          }
         },
         theme: {
           color: '#9333ea'

@@ -79,21 +79,23 @@ export const PushNotificationManager: React.FC = () => {
       });
 
       // Send to backend
+      const subscriptionData = JSON.parse(JSON.stringify(subscription));
       const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription, userId: profile.uid })
+        body: JSON.stringify({ subscription: subscriptionData, userId: profile.uid })
       });
 
       if (response.ok) {
         setIsSubscribed(true);
         toast.success('Notifications enabled! You will receive alerts for new bookings.');
       } else {
-        throw new Error('Failed to save subscription on server');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save subscription on server');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error subscribing to push:', error);
-      toast.error('Failed to enable notifications.');
+      toast.error(`Failed to enable notifications: ${error.message}`);
     } finally {
       setLoading(false);
     }

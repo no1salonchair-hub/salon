@@ -69,19 +69,29 @@ export const NotificationManager: React.FC = () => {
     const sendSubscriptionToServer = async (subscription: PushSubscription, userId: string) => {
       try {
         console.log('Sending subscription to server for user:', userId);
+        
+        // Ensure subscription is a plain object
+        const subscriptionData = JSON.parse(JSON.stringify(subscription));
+        
         const response = await fetch('/api/notifications/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription, userId })
+          body: JSON.stringify({ subscription: subscriptionData, userId })
         });
+        
         if (!response.ok) {
           const errorData = await response.json();
+          console.error('Server error details:', errorData);
           throw new Error(errorData.error || 'Failed to save subscription');
         }
+        
         console.log('Subscription saved to server successfully');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error sending subscription to server:', error);
-        toast.error('Failed to sync notification settings with server.');
+        // Only show toast if it's a real error, not just a cancellation
+        if (error.name !== 'AbortError') {
+          toast.error(`Notification sync failed: ${error.message}`);
+        }
       }
     };
 
