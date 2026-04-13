@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, getDocs, Timestamp, updateDoc, doc } from 'firebase/firestore';
-import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield, Clock, Star } from 'lucide-react';
+import { Scissors, Plus, Trash2, MapPin, Image as ImageIcon, Loader2, Save, Shield, Clock, Star, Pencil, Check, X } from 'lucide-react';
 import { Service, Salon, Barber } from '../types';
 import { INDIAN_STATES, STATE_CITIES } from '../constants/india-locations';
 import { cn } from '../lib/utils';
@@ -21,6 +21,9 @@ export const SalonSetup: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [newServiceName, setNewServiceName] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
+  const [editingServiceIdx, setEditingServiceIdx] = useState<number | null>(null);
+  const [editServiceName, setEditServiceName] = useState('');
+  const [editServicePrice, setEditServicePrice] = useState('');
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [newBarberName, setNewBarberName] = useState('');
   const [image, setImage] = useState<File | null>(null);
@@ -32,6 +35,7 @@ export const SalonSetup: React.FC = () => {
   const [selectedCity, setSelectedCity] = useState('');
   const [address, setAddress] = useState('');
   const [salonStatus, setSalonStatus] = useState<'pending' | 'active' | 'hidden' | null>(null);
+  const [locationRequired, setLocationRequired] = useState(true);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<'monthly' | 'yearly'>('monthly');
 
@@ -59,6 +63,53 @@ export const SalonSetup: React.FC = () => {
       console.error('Error in reverse geocoding:', error);
     }
     return null;
+  };
+
+  const detectLocation = () => {
+    if (navigator.geolocation) {
+      console.log('SalonSetup: Geolocation is supported');
+      setIsDetectingLocation(true);
+      const geoTimeout = setTimeout(() => {
+        setIsDetectingLocation(false);
+        console.warn('SalonSetup: Geolocation request timed out');
+      }, 10000);
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            console.log('SalonSetup: Geolocation success', position.coords);
+            clearTimeout(geoTimeout);
+            const { latitude, longitude } = position.coords;
+            const geoData = await reverseGeocode(latitude, longitude);
+            
+            setLocation({
+              lat: latitude,
+              lng: longitude,
+              ...geoData
+            });
+
+            if (geoData) {
+              if (geoData.state) setSelectedState(geoData.state);
+              if (geoData.city) setSelectedCity(geoData.city);
+              if (geoData.address) setAddress(geoData.address);
+            }
+            setIsDetectingLocation(false);
+          } catch (error) {
+            console.error('SalonSetup: Error processing geolocation:', error);
+            setIsDetectingLocation(false);
+          }
+        },
+        (error) => {
+          console.error('SalonSetup: Geolocation error', error);
+          clearTimeout(geoTimeout);
+          setIsDetectingLocation(false);
+          toast.error('Could not detect location automatically. Please select manually.');
+        },
+        { timeout: 10000, enableHighAccuracy: false }
+      );
+    } else {
+      toast.error('Geolocation is not supported by your browser.');
+    }
   };
 
   useEffect(() => {
@@ -105,45 +156,7 @@ export const SalonSetup: React.FC = () => {
     }
 
     if (navigator.geolocation && !location) {
-      console.log('SalonSetup: Geolocation is supported and location is null');
-      setIsDetectingLocation(true);
-      const geoTimeout = setTimeout(() => {
-        setIsDetectingLocation(false);
-        console.warn('SalonSetup: Geolocation request timed out');
-      }, 10000);
-
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            console.log('SalonSetup: Geolocation success', position.coords);
-            clearTimeout(geoTimeout);
-            const { latitude, longitude } = position.coords;
-            const geoData = await reverseGeocode(latitude, longitude);
-            
-            setLocation({
-              lat: latitude,
-              lng: longitude,
-              ...geoData
-            });
-
-            if (geoData) {
-              if (geoData.state) setSelectedState(geoData.state);
-              if (geoData.city) setSelectedCity(geoData.city);
-              if (geoData.address) setAddress(geoData.address);
-            }
-            setIsDetectingLocation(false);
-          } catch (error) {
-            console.error('SalonSetup: Error processing geolocation:', error);
-            setIsDetectingLocation(false);
-          }
-        },
-        (error) => {
-          console.error('SalonSetup: Geolocation error', error);
-          clearTimeout(geoTimeout);
-          setIsDetectingLocation(false);
-        },
-        { timeout: 10000, enableHighAccuracy: false }
-      );
+      detectLocation();
     }
   }, [profile, navigate]);
 
@@ -173,6 +186,27 @@ export const SalonSetup: React.FC = () => {
 
   const removeService = (idx: number) => {
     setServices(services.filter((_, i) => i !== idx));
+  };
+
+  const startEditingService = (idx: number) => {
+    setEditingServiceIdx(idx);
+    setEditServiceName(services[idx].name);
+    setEditServicePrice(services[idx].price.toString());
+  };
+
+  const saveEditedService = () => {
+    if (editingServiceIdx === null || !editServiceName || !editServicePrice) return;
+    const updatedServices = [...services];
+    updatedServices[editingServiceIdx] = {
+      name: editServiceName,
+      price: parseFloat(editServicePrice)
+    };
+    setServices(updatedServices);
+    setEditingServiceIdx(null);
+  };
+
+  const cancelEditingService = () => {
+    setEditingServiceIdx(null);
   };
 
   const addBarber = () => {
@@ -425,17 +459,57 @@ export const SalonSetup: React.FC = () => {
                     key={idx}
                     className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10"
                   >
-                    <span className="font-bold text-white">{service.name}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-purple-400 font-black">₹{service.price}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeService(idx)}
-                        className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {editingServiceIdx === idx ? (
+                      <div className="flex flex-1 gap-2 items-center">
+                        <input
+                          type="text"
+                          value={editServiceName}
+                          onChange={(e) => setEditServiceName(e.target.value)}
+                          className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-white text-sm"
+                        />
+                        <input
+                          type="number"
+                          value={editServicePrice}
+                          onChange={(e) => setEditServicePrice(e.target.value)}
+                          className="w-24 px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 text-white text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={saveEditedService}
+                          className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-all"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingService}
+                          className="p-2 text-white/40 hover:bg-white/10 rounded-lg transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-bold text-white">{service.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-purple-400 font-black mr-2">₹{service.price}</span>
+                          <button
+                            type="button"
+                            onClick={() => startEditingService(idx)}
+                            className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-xl transition-all"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeService(idx)}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -485,6 +559,45 @@ export const SalonSetup: React.FC = () => {
               {barbers.length === 0 && (
                 <p className="text-xs text-white/20 italic p-2">No barbers added yet. You can still accept multiple bookings manually.</p>
               )}
+            </div>
+          </div>
+
+          {/* Location Required Toggle */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-400">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Location Required</h4>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest font-black">Activate to detect your salon location</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isDetectingLocation) {
+                    detectLocation();
+                  }
+                }}
+                disabled={isDetectingLocation}
+                className={cn(
+                  "px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  isDetectingLocation 
+                    ? "bg-white/10 text-white/40 cursor-not-allowed" 
+                    : "bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-600/20"
+                )}
+              >
+                {isDetectingLocation ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Detecting...
+                  </>
+                ) : (
+                  'Activate Now'
+                )}
+              </button>
             </div>
           </div>
 

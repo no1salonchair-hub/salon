@@ -37,18 +37,27 @@ let _adminDb: admin.firestore.Firestore | null = null;
 async function getAdminDb() {
   if (_adminDb) return _adminDb;
   
+  console.log("Initializing Admin DB...");
   if (admin.apps.length === 0) {
     let firebaseConfig: any = {};
     try {
       const configPath = path.join(process.cwd(), "firebase-applet-config.json");
       if (fs.existsSync(configPath)) {
         firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        console.log("Loaded firebase-applet-config.json for Admin SDK");
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error loading firebase-applet-config.json:", e);
+    }
 
-    admin.initializeApp({
-      projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID
-    });
+    try {
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID
+      });
+      console.log("Admin SDK initialized successfully with project ID:", admin.app().options.projectId);
+    } catch (e) {
+      console.error("Admin SDK initialization failed:", e);
+    }
   }
   
   // Use the specific database ID if provided
@@ -192,18 +201,23 @@ export async function createApp() {
   });
 
   app.post("/api/notifications/subscribe", async (req, res) => {
+    console.log("Subscribe Request Body:", JSON.stringify(req.body).substring(0, 100) + "...");
     try {
       const { subscription, userId } = req.body;
-      if (!subscription || !userId) return res.status(400).json({ error: "Missing subscription or userId" });
+      if (!subscription || !userId) {
+        console.warn("Missing subscription or userId in request");
+        return res.status(400).json({ error: "Missing subscription or userId" });
+      }
       
-      const db = await getDb();
-      const client = await getFirebaseClient();
-      const subRef = client.doc(db, "push_subscriptions", userId);
+      const adminDb = await getAdminDb();
+      console.log("Saving subscription for user:", userId);
+      const subRef = adminDb.collection("push_subscriptions").doc(userId);
       
-      await client.setDoc(subRef, {
+      await subRef.set({
         subscription,
-        updatedAt: client.Timestamp.now()
+        updatedAt: admin.firestore.Timestamp.now()
       });
+      console.log("Subscription saved successfully for user:", userId);
       res.json({ status: "ok" });
     } catch (error: any) {
       console.error("Subscribe Error:", error);

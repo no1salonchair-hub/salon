@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Salon } from '../types';
-import { MapPin, Search, Star, Scissors, Clock, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { MapPin, Search, Star, Scissors, Clock, ChevronRight, ArrowUpDown, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
@@ -35,19 +36,18 @@ export const Home: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [distanceRange, setDistanceRange] = useState(1); // Default to 1km
   const [sortBy, setSortBy] = useState<SortOption>('recent');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const navigate = useNavigate();
 
   if (error) {
     throw error;
   }
 
-  useEffect(() => {
-    console.log('Home: useEffect triggered');
-    
-    // Get user location with timeout
+  const detectLocation = () => {
     if (navigator.geolocation) {
-      console.log('Home: Geolocation is supported');
+      setIsDetectingLocation(true);
       const geoTimeout = setTimeout(() => {
+        setIsDetectingLocation(false);
         console.warn('Home: Geolocation request timed out');
       }, 10000);
 
@@ -59,15 +59,26 @@ export const Home: React.FC = () => {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
+          setIsDetectingLocation(false);
+          toast.success('Location updated!');
         },
         (error) => {
           console.error('Home: Geolocation error', error);
           clearTimeout(geoTimeout);
+          setIsDetectingLocation(false);
+          toast.error('Could not detect location.');
         },
-        { timeout: 5000, enableHighAccuracy: false }
+        { timeout: 10000, enableHighAccuracy: false }
       );
-    } else {
-      console.warn('Home: Geolocation is not supported');
+    }
+  };
+
+  useEffect(() => {
+    console.log('Home: useEffect triggered');
+    
+    // Get user location with timeout
+    if (navigator.geolocation && !userLocation) {
+      detectLocation();
     }
 
     // Fetch active salons with a limit for faster initial load
@@ -180,8 +191,20 @@ export const Home: React.FC = () => {
                 placeholder="Search salons, services..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/40 shadow-2xl"
+                className="w-full pl-12 pr-32 py-4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white placeholder:text-white/40 shadow-2xl"
               />
+              <button
+                onClick={() => detectLocation()}
+                disabled={isDetectingLocation}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-white/10 disabled:opacity-50"
+              >
+                {isDetectingLocation ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <MapPin className="w-3 h-3" />
+                )}
+                {isDetectingLocation ? 'Detecting...' : 'Detect'}
+              </button>
             </div>
             <button
               onClick={() => {
