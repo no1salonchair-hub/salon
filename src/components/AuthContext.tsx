@@ -167,7 +167,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(doc(db, 'users', user.uid), updatedProfile);
       setProfile(updatedProfile);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      try {
+        handleFirestoreError(error, OperationType.WRITE, path);
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
     }
   };
 

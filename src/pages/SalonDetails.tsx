@@ -204,7 +204,11 @@ export const SalonDetails: React.FC = () => {
       toast.success('Booking request sent successfully!');
       navigate(`/booking/${docRef.id}`);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'bookings');
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'bookings');
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
     } finally {
       setBookingLoading(false);
     }

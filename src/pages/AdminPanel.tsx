@@ -125,7 +125,11 @@ export const AdminPanel: React.FC = () => {
         subscriptionExpiry: Timestamp.fromDate(addDays(new Date(), 30)),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
     }
   };
 
@@ -137,7 +141,11 @@ export const AdminPanel: React.FC = () => {
         status: authorized ? 'active' : 'pending'
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      try {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
     }
   };
 
@@ -401,7 +409,13 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center justify-end gap-2">
                           {salon.adminAuthorized ? (
                             <button
-                              onClick={() => setAdminAuthorization(salon.id, false)}
+                              onClick={async () => {
+                                try {
+                                  await setAdminAuthorization(salon.id, false);
+                                } catch (e) {
+                                  console.error('Failed to unauthorize:', e);
+                                }
+                              }}
                               className="p-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-all border border-red-500/20 shadow-sm"
                               title="Unauthorize"
                             >
@@ -409,7 +423,13 @@ export const AdminPanel: React.FC = () => {
                             </button>
                           ) : (
                             <button
-                              onClick={() => setAdminAuthorization(salon.id, true)}
+                              onClick={async () => {
+                                try {
+                                  await setAdminAuthorization(salon.id, true);
+                                } catch (e) {
+                                  console.error('Failed to authorize:', e);
+                                }
+                              }}
                               className="p-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-all border border-blue-500/20 shadow-sm"
                               title="Authorize"
                             >
@@ -418,7 +438,13 @@ export const AdminPanel: React.FC = () => {
                           )}
                           {salon.status === 'pending' && (
                             <button
-                              onClick={() => approveSalon(salon.id)}
+                              onClick={async () => {
+                                try {
+                                  await approveSalon(salon.id);
+                                } catch (e) {
+                                  console.error('Failed to approve:', e);
+                                }
+                              }}
                               className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all shadow-sm"
                               title="Approve & Activate"
                             >

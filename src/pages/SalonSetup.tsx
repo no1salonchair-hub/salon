@@ -114,23 +114,28 @@ export const SalonSetup: React.FC = () => {
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          console.log('SalonSetup: Geolocation success', position.coords);
-          clearTimeout(geoTimeout);
-          const { latitude, longitude } = position.coords;
-          const geoData = await reverseGeocode(latitude, longitude);
-          
-          setLocation({
-            lat: latitude,
-            lng: longitude,
-            ...geoData
-          });
+          try {
+            console.log('SalonSetup: Geolocation success', position.coords);
+            clearTimeout(geoTimeout);
+            const { latitude, longitude } = position.coords;
+            const geoData = await reverseGeocode(latitude, longitude);
+            
+            setLocation({
+              lat: latitude,
+              lng: longitude,
+              ...geoData
+            });
 
-          if (geoData) {
-            if (geoData.state) setSelectedState(geoData.state);
-            if (geoData.city) setSelectedCity(geoData.city);
-            if (geoData.address) setAddress(geoData.address);
+            if (geoData) {
+              if (geoData.state) setSelectedState(geoData.state);
+              if (geoData.city) setSelectedCity(geoData.city);
+              if (geoData.address) setAddress(geoData.address);
+            }
+            setIsDetectingLocation(false);
+          } catch (error) {
+            console.error('SalonSetup: Error processing geolocation:', error);
+            setIsDetectingLocation(false);
           }
-          setIsDetectingLocation(false);
         },
         (error) => {
           console.error('SalonSetup: Geolocation error', error);
@@ -298,7 +303,11 @@ export const SalonSetup: React.FC = () => {
     } catch (error) {
       console.error('Error during salon setup/update:', error);
       toast.error('Failed to save salon details.', { id: toastId });
-      handleFirestoreError(error, profile.role === 'salon_owner' ? OperationType.UPDATE : OperationType.CREATE, 'salons');
+      try {
+        handleFirestoreError(error, profile.role === 'salon_owner' ? OperationType.UPDATE : OperationType.CREATE, 'salons');
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
     } finally {
       setLoading(false);
     }

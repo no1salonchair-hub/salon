@@ -293,7 +293,13 @@ export const Dashboard: React.FC = () => {
                         ) : (
                           <>
                             <button
-                              onClick={() => updateBookingStatus(booking.id, 'accepted')}
+                              onClick={async () => {
+                                try {
+                                  await updateBookingStatus(booking.id, 'accepted');
+                                } catch (e) {
+                                  console.error('Failed to accept booking:', e);
+                                }
+                              }}
                               disabled={salon?.subscriptionExpiry && salon.subscriptionExpiry.toDate() <= new Date()}
                               className={cn(
                                 "p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed",
@@ -304,7 +310,13 @@ export const Dashboard: React.FC = () => {
                               <CheckCircle className="w-5 h-5" />
                             </button>
                             <button
-                              onClick={() => updateBookingStatus(booking.id, 'rejected')}
+                              onClick={async () => {
+                                try {
+                                  await updateBookingStatus(booking.id, 'rejected');
+                                } catch (e) {
+                                  console.error('Failed to reject booking:', e);
+                                }
+                              }}
                               className="p-2 bg-red-600/20 text-red-500 rounded-xl hover:bg-red-600/30 transition-all"
                             >
                               <XCircle className="w-5 h-5" />

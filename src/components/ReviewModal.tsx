@@ -67,7 +67,11 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({ bookingId, salonId, on
       onClose();
     } catch (error) {
       console.error('Error submitting review:', error);
-      handleFirestoreError(error, OperationType.CREATE, 'reviews');
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'reviews');
+      } catch (e) {
+        console.error('Firestore error reported:', e);
+      }
       toast.error('Failed to submit review');
     } finally {
       setLoading(false);
