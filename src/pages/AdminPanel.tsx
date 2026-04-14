@@ -6,6 +6,7 @@ import { Salon, Payment, UserProfile } from '../types';
 import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { format, addDays, startOfDay, isSameDay } from 'date-fns';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -18,6 +19,7 @@ export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments'>('overview');
   const [salonToDelete, setSalonToDelete] = useState<string | null>(null);
+  const [selectedSalonForDetails, setSelectedSalonForDetails] = useState<Salon | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const totalIncome = payments
@@ -123,6 +125,7 @@ export const AdminPanel: React.FC = () => {
         status: 'active',
         adminAuthorized: true,
         subscriptionExpiry: Timestamp.fromDate(addDays(new Date(), 30)),
+        updatedAt: Timestamp.now(),
       });
     } catch (error) {
       try {
@@ -138,7 +141,8 @@ export const AdminPanel: React.FC = () => {
     try {
       await updateDoc(doc(db, 'salons', salonId), {
         adminAuthorized: authorized,
-        status: authorized ? 'active' : 'pending'
+        status: authorized ? 'active' : 'pending',
+        updatedAt: Timestamp.now(),
       });
     } catch (error) {
       try {
@@ -153,7 +157,10 @@ export const AdminPanel: React.FC = () => {
     const path = `salons/${salonId}`;
     try {
       const newStatus = currentStatus === 'active' ? 'hidden' : 'active';
-      await updateDoc(doc(db, 'salons', salonId), { status: newStatus });
+      await updateDoc(doc(db, 'salons', salonId), { 
+        status: newStatus,
+        updatedAt: Timestamp.now()
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -177,8 +184,21 @@ export const AdminPanel: React.FC = () => {
     try {
       await updateDoc(doc(db, 'payments', paymentId), { status: 'success' });
       await approveSalon(salonId);
+      toast.success('Payment approved and salon activated!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  };
+
+  const deletePaymentAndSalon = async (paymentId: string, salonId: string) => {
+    if (!window.confirm('Are you sure you want to delete this payment and the associated salon? This cannot be undone.')) return;
+    
+    try {
+      await deleteDoc(doc(db, 'payments', paymentId));
+      await deleteDoc(doc(db, 'salons', salonId));
+      toast.success('Payment and salon deleted successfully');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'payments/salons');
     }
   };
 
@@ -325,12 +345,20 @@ export const AdminPanel: React.FC = () => {
                       <p className="text-[10px] text-white/40 mt-1">{format(payment.createdAt.toDate(), 'MMM dd, hh:mm a')}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => approvePayment(payment.id, payment.salonId)}
-                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-500 transition-all shadow-lg shadow-green-600/20"
-                  >
-                    Verify & Activate
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => deletePaymentAndSalon(payment.id, payment.salonId)}
+                      className="px-4 py-3 bg-red-500/10 text-red-500 rounded-xl font-bold hover:bg-red-500/20 transition-all border border-red-500/20"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => approvePayment(payment.id, payment.salonId)}
+                      className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-500 transition-all shadow-lg shadow-green-600/20"
+                    >
+                      Verify & Activate
+                    </button>
+                  </div>
                 </div>
               ))}
               {payments.filter(p => p.status === 'pending').length === 0 && (
@@ -360,7 +388,11 @@ export const AdminPanel: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {salons.map(salon => (
-                    <tr key={salon.id} className="hover:bg-white/5 transition-all">
+                    <tr 
+                      key={salon.id} 
+                      className="hover:bg-white/5 transition-all cursor-pointer"
+                      onClick={() => setSelectedSalonForDetails(salon)}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <img src={salon.imageUrl} alt={salon.name} className="w-10 h-10 rounded-lg object-cover" referrerPolicy="no-referrer" />
@@ -406,7 +438,7 @@ export const AdminPanel: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           {salon.adminAuthorized ? (
                             <button
                               onClick={async () => {
@@ -682,6 +714,148 @@ export const AdminPanel: React.FC = () => {
               </table>
             </div>
           </section>
+        </div>
+      )}
+
+      {/* Salon Details Modal */}
+      {selectedSalonForDetails && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[110] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#121212] border border-white/10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl animate-in fade-in zoom-in duration-300 my-8">
+            <div className="relative h-64 sm:h-80 rounded-t-[2.5rem] overflow-hidden">
+              <img 
+                src={selectedSalonForDetails.imageUrl} 
+                alt={selectedSalonForDetails.name} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
+              <button 
+                onClick={() => setSelectedSalonForDetails(null)}
+                className="absolute top-6 right-6 w-12 h-12 bg-black/50 backdrop-blur-xl rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-all border border-white/10"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+              <div className="absolute bottom-6 left-8">
+                <h2 className="text-4xl font-black text-white italic">{selectedSalonForDetails.name}</h2>
+                <p className="text-white/60 flex items-center gap-2 mt-1">
+                  <MapPin className="w-4 h-4 text-purple-500" />
+                  {selectedSalonForDetails.location.address}, {selectedSalonForDetails.location.city}, {selectedSalonForDetails.location.state}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-8 sm:p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-8">
+                <section className="space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Owner Information</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center text-purple-400">
+                        <User className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{users[selectedSalonForDetails.ownerId]?.name || 'Loading...'}</p>
+                        <p className="text-xs text-white/40">{users[selectedSalonForDetails.ownerId]?.email || 'Loading...'}</p>
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                      <span className="text-xs text-white/40">Owner UID</span>
+                      <span className="text-[10px] font-mono text-white/60">{selectedSalonForDetails.ownerId}</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Location Details</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">City</span>
+                      <span className="text-sm font-bold text-white">{selectedSalonForDetails.location.city}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">State</span>
+                      <span className="text-sm font-bold text-white">{selectedSalonForDetails.location.state}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">Coordinates</span>
+                      <span className="text-[10px] font-mono text-white/60">
+                        {selectedSalonForDetails.location.lat.toFixed(4)}, {selectedSalonForDetails.location.lng.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div className="space-y-8">
+                <section className="space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Timeline & Status</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">Uploaded On</span>
+                      <span className="text-xs font-bold text-white">
+                        {format(selectedSalonForDetails.createdAt.toDate(), 'MMM dd, yyyy HH:mm')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">Last Updated</span>
+                      <span className="text-xs font-bold text-white">
+                        {selectedSalonForDetails.updatedAt ? format(selectedSalonForDetails.updatedAt.toDate(), 'MMM dd, yyyy HH:mm') : 'Never'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">Status</span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                        selectedSalonForDetails.status === 'active' ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                      )}>
+                        {selectedSalonForDetails.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-white/40">AI Moderation</span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                        selectedSalonForDetails.imageStatus === 'authorized_by_ai' ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                      )}>
+                        {selectedSalonForDetails.imageStatus || 'pending'}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-purple-500">Services ({selectedSalonForDetails.services.length})</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6 max-h-48 overflow-y-auto space-y-2">
+                    {selectedSalonForDetails.services.map((s, i) => (
+                      <div key={i} className="flex justify-between items-center p-2 hover:bg-white/5 rounded-lg transition-all">
+                        <span className="text-sm text-white/80">{s.name}</span>
+                        <span className="text-sm font-black text-purple-400">₹{s.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div className="p-8 sm:p-10 border-t border-white/5 flex justify-end gap-4">
+              <button 
+                onClick={() => setSelectedSalonForDetails(null)}
+                className="px-8 py-4 bg-white/5 text-white rounded-2xl font-bold hover:bg-white/10 transition-all"
+              >
+                Close Details
+              </button>
+              <button 
+                onClick={() => {
+                  setSalonToDelete(selectedSalonForDetails.id);
+                  setSelectedSalonForDetails(null);
+                }}
+                className="px-8 py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-500 transition-all flex items-center gap-2"
+              >
+                <Trash2 className="w-5 h-5" />
+                Delete Salon
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -44,6 +44,7 @@ export interface Salon {
   averageRating?: number;
   reviewCount?: number;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface Booking {

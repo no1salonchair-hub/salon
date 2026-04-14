@@ -295,6 +295,7 @@ export const SalonSetup: React.FC = () => {
           status: 'pending', // Reset to pending on update
           imageStatus: currentImageStatus,
           subscriptionPlan,
+          updatedAt: Timestamp.now(),
         };
         await updateDoc(doc(db, 'salons', salonId), updates);
       } else {
