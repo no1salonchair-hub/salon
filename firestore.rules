@@ -127,6 +127,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isAdmin() || isOwner(get(/databases/$(database)/documents/salons/$(resource.data.salonId)).data.ownerId));
       allow create: if isAuthenticated() && (isAdmin() || isOwner(get(/databases/$(database)/documents/salons/$(request.resource.data.salonId)).data.ownerId)) && isValidPayment(request.resource.data);
       allow update: if isAdmin() && isValidPayment(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /reviews/{reviewId} {

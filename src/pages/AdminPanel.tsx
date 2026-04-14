@@ -19,6 +19,7 @@ export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments'>('overview');
   const [salonToDelete, setSalonToDelete] = useState<string | null>(null);
+  const [paymentToDelete, setPaymentToDelete] = useState<{paymentId: string, salonId: string, salonName: string} | null>(null);
   const [selectedSalonForDetails, setSelectedSalonForDetails] = useState<Salon | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -170,8 +171,15 @@ export const AdminPanel: React.FC = () => {
     const path = `salons/${salonId}`;
     setIsDeleting(true);
     try {
+      // Also delete associated payments
+      const associatedPayments = payments.filter(p => p.salonId === salonId);
+      for (const p of associatedPayments) {
+        await deleteDoc(doc(db, 'payments', p.id));
+      }
+      
       await deleteDoc(doc(db, 'salons', salonId));
       setSalonToDelete(null);
+      toast.success('Salon and associated data deleted successfully');
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     } finally {
@@ -191,14 +199,16 @@ export const AdminPanel: React.FC = () => {
   };
 
   const deletePaymentAndSalon = async (paymentId: string, salonId: string) => {
-    if (!window.confirm('Are you sure you want to delete this payment and the associated salon? This cannot be undone.')) return;
-    
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'payments', paymentId));
       await deleteDoc(doc(db, 'salons', salonId));
+      setPaymentToDelete(null);
       toast.success('Payment and salon deleted successfully');
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'payments/salons');
+      handleFirestoreError(error, OperationType.DELETE, `payments/${paymentId}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -224,15 +234,16 @@ export const AdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Salon Deletion Modal */}
       {salonToDelete && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-300">
             <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 mb-6 mx-auto">
               <AlertTriangle className="w-8 h-8" />
             </div>
             <h3 className="text-2xl font-black text-white text-center mb-2">Delete Salon?</h3>
             <p className="text-white/60 text-center mb-8">
-              Are you sure you want to delete <span className="text-white font-bold">{salons.find(s => s.id === salonToDelete)?.name}</span>? This action cannot be undone.
+              Are you sure you want to delete <span className="text-white font-bold">{salons.find(s => s.id === salonToDelete)?.name}</span>? This will also delete all associated payments and cannot be undone.
             </p>
             <div className="flex gap-4">
               <button
@@ -249,6 +260,38 @@ export const AdminPanel: React.FC = () => {
               >
                 {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Deletion Modal */}
+      {paymentToDelete && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500 mb-6 mx-auto">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-white text-center mb-2">Delete Payment & Salon?</h3>
+            <p className="text-white/60 text-center mb-8">
+              Are you sure you want to delete the pending payment and salon <span className="text-white font-bold">{paymentToDelete.salonName}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setPaymentToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-white/5 text-white rounded-2xl font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deletePaymentAndSalon(paymentToDelete.paymentId, paymentToDelete.salonId)}
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                Delete Both
               </button>
             </div>
           </div>
@@ -347,7 +390,11 @@ export const AdminPanel: React.FC = () => {
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => deletePaymentAndSalon(payment.id, payment.salonId)}
+                      onClick={() => setPaymentToDelete({ 
+                        paymentId: payment.id, 
+                        salonId: payment.salonId, 
+                        salonName: payment.salonName || 'Unknown Salon' 
+                      })}
                       className="px-4 py-3 bg-red-500/10 text-red-500 rounded-xl font-bold hover:bg-red-500/20 transition-all border border-red-500/20"
                     >
                       <Trash2 className="w-5 h-5" />
