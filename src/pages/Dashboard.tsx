@@ -21,6 +21,25 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'favorites' | 'insights'>('upcoming');
+
+  // Separate effect to fetch user profiles whenever bookings change
+  useEffect(() => {
+    if (profile?.role !== 'salon_owner' || bookings.length === 0) return;
+
+    const userIds = [...new Set(bookings.map(b => b.userId))];
+    userIds.forEach(async (userId) => {
+      if (!users[userId]) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', userId));
+          if (userSnap.exists()) {
+            setUsers(prev => ({ ...prev, [userId]: userSnap.data() as UserProfile }));
+          }
+        } catch (err) {
+          console.error('Error fetching user profile:', err);
+        }
+      }
+    });
+  }, [bookings, profile?.role]);
   const [reviewBooking, setReviewBooking] = useState<{ id: string; salonId: string } | null>(null);
 
   if (error) {
@@ -50,22 +69,6 @@ export const Dashboard: React.FC = () => {
           unsubscribeBookings = onSnapshot(qBookings, (snapshot) => {
             const bookingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
             setBookings(bookingList);
-            
-            // Fetch user profiles for bookings
-            const userIds = [...new Set(bookingList.map(b => b.userId))];
-            userIds.forEach(async (userId) => {
-              if (!users[userId]) {
-                try {
-                  const userSnap = await getDoc(doc(db, 'users', userId));
-                  if (userSnap.exists()) {
-                    setUsers(prev => ({ ...prev, [userId]: userSnap.data() as UserProfile }));
-                  }
-                } catch (err) {
-                  console.error('Error fetching user profile:', err);
-                }
-              }
-            });
-            
             setLoading(false);
           }, (err) => {
             handleFirestoreError(err, OperationType.LIST, 'bookings');
