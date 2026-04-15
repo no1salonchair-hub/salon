@@ -86,6 +86,13 @@ export interface Review {
   createdAt: Timestamp;
 }
 
+export interface Favorite {
+  id: string;
+  userId: string;
+  salonId: string;
+  createdAt: Timestamp;
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

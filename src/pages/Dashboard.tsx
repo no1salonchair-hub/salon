@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, Timestamp, getDoc, limit } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth } from '../components/AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { Booking, Salon, Payment } from '../types';
+import { Booking, Salon, Payment, UserProfile, Favorite } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2, Star } from 'lucide-react';
+import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2, Star, User, Heart, TrendingUp, Users, Award, MapPin } from 'lucide-react';
 import { PushNotificationManager } from '../components/PushNotificationManager';
 import { ReviewModal } from '../components/ReviewModal';
 
@@ -15,10 +15,12 @@ export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [favorites, setFavorites] = useState<Salon[]>([]);
+  const [users, setUsers] = useState<Record<string, UserProfile>>({});
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'favorites' | 'insights'>('upcoming');
   const [reviewBooking, setReviewBooking] = useState<{ id: string; salonId: string } | null>(null);
 
   if (error) {
@@ -46,7 +48,24 @@ export const Dashboard: React.FC = () => {
             orderBy('createdAt', 'desc')
           );
           unsubscribeBookings = onSnapshot(qBookings, (snapshot) => {
-            setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[]);
+            const bookingList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
+            setBookings(bookingList);
+            
+            // Fetch user profiles for bookings
+            const userIds = [...new Set(bookingList.map(b => b.userId))];
+            userIds.forEach(async (userId) => {
+              if (!users[userId]) {
+                try {
+                  const userSnap = await getDoc(doc(db, 'users', userId));
+                  if (userSnap.exists()) {
+                    setUsers(prev => ({ ...prev, [userId]: userSnap.data() as UserProfile }));
+                  }
+                } catch (err) {
+                  console.error('Error fetching user profile:', err);
+                }
+              }
+            });
+            
             setLoading(false);
           }, (err) => {
             handleFirestoreError(err, OperationType.LIST, 'bookings');
@@ -76,6 +95,27 @@ export const Dashboard: React.FC = () => {
         setError(err);
         setLoading(false);
       });
+
+      // Fetch User's Favorites
+      const qFavs = query(collection(db, 'favorites'), where('userId', '==', profile.uid));
+      const unsubscribeFavs = onSnapshot(qFavs, async (snapshot) => {
+        const favSalonIds = snapshot.docs.map(doc => (doc.data() as Favorite).salonId);
+        if (favSalonIds.length > 0) {
+          const salonPromises = favSalonIds.map(id => getDoc(doc(db, 'salons', id)));
+          const salonSnaps = await Promise.all(salonPromises);
+          const favSalons = salonSnaps
+            .filter(s => s.exists())
+            .map(s => ({ id: s.id, ...s.data() } as Salon));
+          setFavorites(favSalons);
+        } else {
+          setFavorites([]);
+        }
+      });
+
+      return () => {
+        unsubscribeBookings?.();
+        unsubscribeFavs?.();
+      };
     }
 
     return () => {
@@ -228,36 +268,197 @@ export const Dashboard: React.FC = () => {
 
       {/* Bookings List */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Calendar className="text-purple-500" />
-            {profile?.role === 'salon_owner' ? 'Booking Management' : 'Your Appointments'}
+            {profile?.role === 'salon_owner' ? 'Management Console' : 'Your Appointments'}
           </h2>
-          {profile?.role === 'user' && (
-            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setActiveTab('upcoming')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'upcoming' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
+              )}
+            >
+              Upcoming
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'history' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
+              )}
+            >
+              History
+            </button>
+            {profile?.role === 'user' && (
               <button
-                onClick={() => setActiveTab('upcoming')}
+                onClick={() => setActiveTab('favorites')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                  activeTab === 'upcoming' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2",
+                  activeTab === 'favorites' ? "bg-pink-600 text-white shadow-lg shadow-pink-600/20" : "text-white/40 hover:text-white"
                 )}
               >
-                Upcoming
+                <Heart className="w-3 h-3" />
+                Favorites
               </button>
+            )}
+            {profile?.role === 'salon_owner' && (
               <button
-                onClick={() => setActiveTab('history')}
+                onClick={() => setActiveTab('insights')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                  activeTab === 'history' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2",
+                  activeTab === 'insights' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-white/40 hover:text-white"
                 )}
               >
-                History
+                <TrendingUp className="w-3 h-3" />
+                VIP Insights
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {profile?.role === 'salon_owner' ? (
+        {activeTab === 'insights' && profile?.role === 'salon_owner' ? (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-xl">
+                <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-4">
+                  <Users className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">Total Customers</p>
+                <p className="text-3xl font-black text-white">{[...new Set(bookings.map(b => b.userId))].length}</p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-xl">
+                <div className="w-12 h-12 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-4">
+                  <Award className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">Repeat Rate</p>
+                <p className="text-3xl font-black text-white">
+                  {(() => {
+                    const userCounts = bookings.reduce((acc, b) => {
+                      acc[b.userId] = (acc[b.userId] || 0) + 1;
+                      return acc;
+                    }, {} as Record<string, number>);
+                    const repeatUsers = Object.values(userCounts).filter(count => count > 1).length;
+                    const totalUsers = Object.keys(userCounts).length;
+                    return totalUsers > 0 ? Math.round((repeatUsers / totalUsers) * 100) : 0;
+                  })()}%
+                </p>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-xl">
+                <div className="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center text-green-400 mb-4">
+                  <Star className="w-6 h-6" />
+                </div>
+                <p className="text-[10px] text-white/40 uppercase font-black tracking-widest">Avg. Bookings/User</p>
+                <p className="text-3xl font-black text-white">
+                  {Object.keys(users).length > 0 ? (bookings.length / Object.keys(users).length).toFixed(1) : '0'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden shadow-xl">
+              <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                <h3 className="text-xl font-black text-white">Top VIP Customers</h3>
+                <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">Based on booking frequency</span>
+              </div>
+              <div className="divide-y divide-white/5">
+                {(() => {
+                  const userCounts = bookings.reduce((acc, b) => {
+                    acc[b.userId] = (acc[b.userId] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>);
+                  
+                  return Object.entries(userCounts)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 10)
+                    .map(([userId, count], idx) => (
+                      <div key={userId} className="p-6 flex items-center justify-between hover:bg-white/5 transition-all group">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-white/20 font-black text-xl group-hover:text-purple-400 transition-colors">
+                            #{idx + 1}
+                          </div>
+                          <div>
+                            <p className="font-bold text-white text-lg">{users[userId]?.name || 'Loading...'}</p>
+                            <p className="text-xs text-white/40">{users[userId]?.email}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-2xl font-black text-purple-400">{count}</span>
+                            <span className="text-[10px] text-white/40 uppercase font-black tracking-widest">Bookings</span>
+                          </div>
+                          {count >= 5 && (
+                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-500 rounded text-[8px] font-black uppercase tracking-widest">Diamond VIP</span>
+                          )}
+                          {count >= 3 && count < 5 && (
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-500 rounded text-[8px] font-black uppercase tracking-widest">Gold VIP</span>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                })()}
+                {Object.keys(users).length === 0 && (
+                  <div className="p-20 text-center">
+                    <Users className="w-16 h-16 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/40 font-bold uppercase tracking-widest">No customer data yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'favorites' && profile?.role === 'user' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {favorites.map((salon) => (
+              <div
+                key={salon.id}
+                onClick={() => navigate(`/salon/${salon.id}`)}
+                className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden cursor-pointer group shadow-xl hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="relative h-40">
+                  <img
+                    src={salon.imageUrl}
+                    alt={salon.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-4 right-4 bg-pink-600 p-2 rounded-xl shadow-lg">
+                    <Heart className="w-4 h-4 text-white fill-white" />
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-black text-white mb-1">{salon.name}</h3>
+                  <p className="text-xs text-white/40 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {salon.location.city}, {salon.location.state}
+                  </p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/salon/${salon.id}`);
+                    }}
+                    className="w-full mt-4 py-3 bg-white/5 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all border border-white/10"
+                  >
+                    Re-book Now
+                  </button>
+                </div>
+              </div>
+            ))}
+            {favorites.length === 0 && (
+              <div className="col-span-full text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                <Heart className="w-16 h-16 text-white/10 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white/40">No favorites yet</h3>
+                <p className="text-white/20">Heart your favorite salons to see them here!</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="mt-6 px-8 py-3 bg-purple-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-purple-500 transition-all"
+                >
+                  Explore Salons
+                </button>
+              </div>
+            )}
+          </div>
+        ) : profile?.role === 'salon_owner' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Pending Section */}
             <div className="space-y-4">
@@ -273,6 +474,12 @@ export const Dashboard: React.FC = () => {
                   >
                     <div className="flex justify-between items-start">
                       <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-400">
+                            <User className="w-4 h-4" />
+                          </div>
+                          <span className="font-bold text-white">{users[booking.userId]?.name || 'Loading...'}</span>
+                        </div>
                         <div className="flex flex-wrap gap-1 mb-1">
                           {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
                             <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
@@ -345,18 +552,24 @@ export const Dashboard: React.FC = () => {
                     key={booking.id}
                     className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-xl"
                   >
-                    <div>
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
-                            {service}
-                          </span>
-                        ))}
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-400">
+                        <User className="w-5 h-5" />
                       </div>
-                      <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
-                        {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
-                        {booking.barberName && <span className="ml-2 text-blue-400">• {booking.barberName}</span>}
-                      </p>
+                      <div>
+                        <p className="text-sm font-bold text-white mb-1">{users[booking.userId]?.name || 'Loading...'}</p>
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {(booking.services || ((booking as any).service ? [(booking as any).service] : [])).map((service, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px] font-black uppercase tracking-widest">
+                              {service}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">
+                          {format(booking.dateTime.toDate(), 'MMM dd, hh:mm a')}
+                          {booking.barberName && <span className="ml-2 text-blue-400">• {booking.barberName}</span>}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button

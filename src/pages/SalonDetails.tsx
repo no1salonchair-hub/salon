@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Helmet } from 'react-helmet-async';
 import { Share2 } from 'lucide-react';
+import { FavoriteButton } from '../components/FavoriteButton';
 
 export const SalonDetails: React.FC = () => {
   const { salonId } = useParams<{ salonId: string }>();
@@ -254,13 +255,16 @@ export const SalonDetails: React.FC = () => {
           <ChevronLeft className="w-5 h-5" />
           Back to Marketplace
         </button>
-        <button
-          onClick={shareOnWhatsApp}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600/10 text-green-500 rounded-xl font-bold hover:bg-green-600/20 transition-all border border-green-500/20"
-        >
-          <Share2 className="w-4 h-4" />
-          Share Salon
-        </button>
+        <div className="flex items-center gap-3">
+          <FavoriteButton salonId={salon.id} />
+          <button
+            onClick={shareOnWhatsApp}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600/10 text-green-500 rounded-xl font-bold hover:bg-green-600/20 transition-all border border-green-500/20"
+          >
+            <Share2 className="w-4 h-4" />
+            Share Salon
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

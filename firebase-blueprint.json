@@ -117,6 +117,18 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "When the review was created" }
       },
       "required": ["id", "salonId", "userId", "userName", "rating", "comment", "createdAt"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "User's favorite salon",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique favorite ID" },
+        "userId": { "type": "string", "description": "UID of the user" },
+        "salonId": { "type": "string", "description": "ID of the favorited salon" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When it was favorited" }
+      },
+      "required": ["id", "userId", "salonId", "createdAt"]
     }
   },
   "firestore": {
@@ -126,6 +138,7 @@
     "/bookings/{bookingId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages for a booking" },
     "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Salon reviews" },
+    "/favorites/{favoriteId}": { "schema": "Favorite", "description": "User favorite salons" },
     "/push_subscriptions/{userId}": { "schema": "object", "description": "Push notification subscriptions" }
   }
 }

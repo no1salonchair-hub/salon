@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { FavoriteButton } from '../components/FavoriteButton';
 
 type SortOption = 'distance' | 'alphabetical' | 'recent';
 
@@ -291,6 +292,9 @@ export const Home: React.FC = () => {
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
+                  <div className="absolute top-4 left-4">
+                    <FavoriteButton salonId={salon.id} />
+                  </div>
                   <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 shadow-xl">
                     <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                     <span className="text-sm font-bold text-white">
