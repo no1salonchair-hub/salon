@@ -93,6 +93,15 @@ export interface Favorite {
   createdAt: Timestamp;
 }
 
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  createdAt: Timestamp;
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

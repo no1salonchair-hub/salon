@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Mail, MapPin, Send, MessageSquare, Clock, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 export const Contact: React.FC = () => {
   const navigate = useNavigate();
@@ -11,21 +14,30 @@ export const Contact: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    const formData = new FormData(e.target as HTMLFormElement);
-    const name = formData.get('name');
-    const email = formData.get('email');
-    const subject = formData.get('subject');
-    const message = formData.get('message');
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const name = formData.get('name') as string;
+    const email = formData.get('email') as string;
+    const subject = formData.get('subject') as string;
+    const message = formData.get('message') as string;
 
-    const mailtoUrl = `mailto:booksalonchair@gmail.com?subject=${encodeURIComponent(`[Contact Form] ${subject}`)}&body=${encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`)}`;
-    
-    // Simulate API call delay for UX
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    window.location.href = mailtoUrl;
-    
-    toast.success('Opening your email client to send the message...');
-    setIsSubmitting(false);
+    try {
+      await addDoc(collection(db, 'contact_messages'), {
+        name,
+        email,
+        subject,
+        message,
+        createdAt: Timestamp.now()
+      });
+      
+      toast.success('Message sent successfully! We will get back to you soon.');
+      form.reset();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'contact_messages');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const contactInfo = [

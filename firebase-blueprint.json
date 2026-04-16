@@ -129,6 +129,20 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "When it was favorited" }
       },
       "required": ["id", "userId", "salonId", "createdAt"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Message from the contact form",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "name": { "type": "string", "description": "Sender's name" },
+        "email": { "type": "string", "format": "email", "description": "Sender's email" },
+        "subject": { "type": "string", "description": "Message subject" },
+        "message": { "type": "string", "description": "Message content" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the message was sent" }
+      },
+      "required": ["id", "name", "email", "subject", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -139,6 +153,7 @@
     "/payments/{paymentId}": { "schema": "Payment", "description": "Subscription payments" },
     "/reviews/{reviewId}": { "schema": "Review", "description": "Salon reviews" },
     "/favorites/{favoriteId}": { "schema": "Favorite", "description": "User favorite salons" },
+    "/contact_messages/{messageId}": { "schema": "ContactMessage", "description": "Contact form submissions" },
     "/push_subscriptions/{userId}": { "schema": "object", "description": "Push notification subscriptions" }
   }
 }

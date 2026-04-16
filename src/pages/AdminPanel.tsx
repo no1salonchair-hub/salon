@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, deleteDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../components/AuthContext';
-import { Salon, Payment, UserProfile } from '../types';
-import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
+import { Salon, Payment, UserProfile, ContactMessage } from '../types';
+import { ShieldCheck, CheckCircle, XCircle, Trash2, Eye, EyeOff, Scissors, MapPin, CreditCard, Loader2, AlertTriangle, Mail, User, Users, Calendar, TrendingUp, DollarSign, MessageSquare } from 'lucide-react';
 import { format, addDays, startOfDay, isSameDay } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -16,8 +16,9 @@ export const AdminPanel: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [users, setUsers] = useState<Record<string, UserProfile>>({});
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'owners' | 'users' | 'payments' | 'messages'>('overview');
   const [salonToDelete, setSalonToDelete] = useState<string | null>(null);
   const [paymentToDelete, setPaymentToDelete] = useState<{paymentId: string, salonId: string, salonName: string} | null>(null);
   const [selectedSalonForDetails, setSelectedSalonForDetails] = useState<Salon | null>(null);
@@ -112,10 +113,21 @@ export const AdminPanel: React.FC = () => {
       }
     );
 
+    const unsubscribeMessages = onSnapshot(
+      query(collection(db, 'contact_messages'), orderBy('createdAt', 'desc')),
+      (snapshot) => {
+        setContactMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ContactMessage[]);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'contact_messages');
+      }
+    );
+
     return () => {
       unsubscribeUsers();
       unsubscribeSalons();
       unsubscribePayments();
+      unsubscribeMessages();
     };
   }, [profile]);
 
@@ -361,6 +373,16 @@ export const AdminPanel: React.FC = () => {
         >
           <DollarSign className="w-4 h-4" />
           Payments
+        </button>
+        <button
+          onClick={() => setActiveTab('messages')}
+          className={cn(
+            "px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2",
+            activeTab === 'messages' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Messages
         </button>
       </div>
 
@@ -761,6 +783,86 @@ export const AdminPanel: React.FC = () => {
               </table>
             </div>
           </section>
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <div className="space-y-8">
+          <div className="flex justify-between items-end">
+            <div>
+              <h2 className="text-3xl font-black italic tracking-tighter uppercase text-white">Contact Messages</h2>
+              <p className="text-white/40 font-medium">Inquiries from the "Get in Touch" form</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl">
+              <span className="text-2xl font-black text-purple-500">{contactMessages.length}</span>
+              <span className="ml-2 text-xs font-black uppercase tracking-widest text-white/40">Total</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            {contactMessages.map((msg) => (
+              <div key={msg.id} className="bg-white/5 border border-white/10 rounded-[2rem] p-8 hover:bg-white/[0.07] transition-all group">
+                <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center border border-purple-500/20">
+                      <User className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{msg.name}</h3>
+                      <div className="flex items-center gap-2 text-white/40 text-sm">
+                        <Mail className="w-3 h-3" />
+                        {msg.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-black uppercase tracking-widest text-white/20 mb-1">Received On</div>
+                    <div className="text-sm font-bold text-white/60">{format(msg.createdAt.toDate(), 'MMM dd, yyyy • hh:mm a')}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500 mb-1 block">Subject</span>
+                    <div className="text-lg font-bold text-white italic">"{msg.subject}"</div>
+                  </div>
+                  <div className="bg-black/20 rounded-2xl p-6 border border-white/5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2 block">Message Content</span>
+                    <p className="text-white/80 leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-white/5 flex justify-end">
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to delete this message?')) {
+                        try {
+                          await deleteDoc(doc(db, 'contact_messages', msg.id));
+                          toast.success('Message deleted');
+                        } catch (err) {
+                          toast.error('Failed to delete message');
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-2 text-red-500/40 hover:text-red-500 transition-all text-sm font-bold"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Message
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {contactMessages.length === 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-20 text-center">
+                <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <MessageSquare className="w-10 h-10 text-white/10" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">No messages yet</h3>
+                <p className="text-white/40">When users contact you, their messages will appear here.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

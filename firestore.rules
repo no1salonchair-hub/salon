@@ -148,6 +148,12 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isOwner(resource.data.userId);
     }
 
+    match /contact_messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if true; // Allow anyone to send a contact message
+      allow delete: if isAdmin();
+    }
+
     match /push_subscriptions/{userId} {
       // Public read allowed to enable server-side notifications via Client SDK (Admin SDK credential issues)
       allow read: if true; 
