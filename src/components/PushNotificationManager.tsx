@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { Bell, BellOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '../lib/utils';
+import { doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export const PushNotificationManager: React.FC = () => {
   const { profile } = useAuth();
@@ -18,22 +21,23 @@ export const PushNotificationManager: React.FC = () => {
     if (!profile) return;
 
     const init = async () => {
-      // 1. Fetch VAPID key if not available
-      if (!vapidKey) {
-        try {
-          const res = await fetch('/api/notifications/vapid-key');
-          if (res.ok) {
-            const data = await res.json();
-            setVapidKey(data.publicKey);
-            console.log('Fetched VAPID key from server');
-          }
-        } catch (err) {
-          console.error('Failed to fetch VAPID key:', err);
+      // 1. Fetch VAPID key from server ALWAYS to ensure consistency
+      try {
+        const res = await fetch('/api/notifications/vapid-key');
+        if (res.ok) {
+          const data = await res.json();
+          setVapidKey(data.publicKey);
+          console.log('Push: Fetched VAPID key from server');
+        } else {
+          console.error('Push: Failed to fetch VAPID key from server', res.status);
         }
+      } catch (err) {
+        console.error('Push: Network error fetching VAPID key:', err);
       }
 
       // 2. Check subscription
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Push: Browser does not support push notifications');
         setLoading(false);
         return;
       }
@@ -42,15 +46,16 @@ export const PushNotificationManager: React.FC = () => {
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
         setIsSubscribed(!!subscription);
+        console.log('Push: Initial subscription state:', !!subscription);
       } catch (error) {
-        console.error('Error checking push subscription:', error);
+        console.error('Push: Error checking subscription:', error);
       } finally {
         setLoading(false);
       }
     };
 
     init();
-  }, [profile, vapidKey]);
+  }, [profile]);
 
   const subscribeToPush = async () => {
     if (!profile || !vapidKey) {
@@ -78,10 +83,10 @@ export const PushNotificationManager: React.FC = () => {
         applicationServerKey: urlBase64ToUint8Array(vapidKey)
       });
 
+      console.log('Push: Subscription successful, saving to Firestore...');
+
       // Save to Firestore directly
       const subscriptionData = JSON.parse(JSON.stringify(subscription));
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
       
       await setDoc(doc(db, 'push_subscriptions', profile.uid), {
         subscription: subscriptionData,
@@ -91,7 +96,7 @@ export const PushNotificationManager: React.FC = () => {
       setIsSubscribed(true);
       toast.success('Notifications enabled! You will receive alerts for new bookings.');
     } catch (error: any) {
-      console.error('Error subscribing to push:', error);
+      console.error('Push: Error subscribing:', error);
       toast.error(`Failed to enable notifications: ${error.message}`);
     } finally {
       setLoading(false);
@@ -106,11 +111,17 @@ export const PushNotificationManager: React.FC = () => {
       
       if (subscription) {
         await subscription.unsubscribe();
+        // Also remove from Firestore
+        try {
+          await deleteDoc(doc(db, 'push_subscriptions', profile.uid));
+        } catch (err) {
+          console.error('Push: Error removing subscription from Firestore:', err);
+        }
         setIsSubscribed(false);
         toast.info('Notifications disabled.');
       }
     } catch (error) {
-      console.error('Error unsubscribing from push:', error);
+      console.error('Push: Error unsubscribing:', error);
       toast.error('Failed to disable notifications.');
     } finally {
       setLoading(false);
@@ -168,9 +179,4 @@ function urlBase64ToUint8Array(base64String: string) {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
-}
-
-// Utility to handle class names
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }

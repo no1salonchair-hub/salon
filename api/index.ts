@@ -254,7 +254,10 @@ export async function createApp() {
     console.log("Trigger Notification Request:", req.body);
     try {
       const { bookingId, ownerId, salonName } = req.body;
-      if (!bookingId) return res.status(400).json({ error: "Missing bookingId" });
+      if (!bookingId) {
+        console.warn("Trigger Notification: Missing bookingId");
+        return res.status(400).json({ error: "Missing bookingId" });
+      }
 
       const client = await getFirebaseClient();
       const firebaseApp = await getFirebaseApp();
@@ -263,9 +266,9 @@ export async function createApp() {
       let targetOwnerId = ownerId;
       let targetSalonName = salonName;
 
-      // If ownerId or salonName is missing, try to fetch them (might fail if Admin SDK is broken)
+      // If ownerId or salonName is missing, try to fetch them
       if (!targetOwnerId || !targetSalonName) {
-        console.log("Fetching missing info for booking:", bookingId);
+        console.log("Trigger Notification: Fetching missing info for booking:", bookingId);
         const bookingDoc = await client.getDoc(client.doc(db, "bookings", bookingId));
         if (bookingDoc.exists()) {
           const booking = bookingDoc.data();
@@ -283,37 +286,46 @@ export async function createApp() {
       }
 
       if (!targetOwnerId) {
-        console.error("Could not determine ownerId for notification");
+        console.error("Trigger Notification: Could not determine ownerId for booking:", bookingId);
         return res.status(400).json({ error: "Could not determine ownerId" });
       }
 
-      console.log("Targeting owner for notification:", targetOwnerId);
+      console.log("Trigger Notification: Targeting owner:", targetOwnerId);
 
       // 2. Get push subscription for owner
       const subDoc = await client.getDoc(client.doc(db, "push_subscriptions", targetOwnerId));
       if (!subDoc.exists()) {
-        console.log("No push subscription found for owner:", targetOwnerId);
+        console.log("Trigger Notification: No push subscription found for owner:", targetOwnerId);
         return res.json({ status: "skipped", reason: "No push subscription for owner" });
       }
       const subscription = subDoc.data()?.subscription;
 
       if (subscription) {
-        console.log("Sending push notification to subscription:", JSON.stringify(subscription).substring(0, 50) + "...");
+        console.log("Trigger Notification: Sending push to:", targetOwnerId);
         const payload = JSON.stringify({
           title: "New Booking!",
           body: `You have a new booking request for ${targetSalonName || 'your salon'}.`,
           url: `/booking/${bookingId}`
         });
 
-        await webpush.sendNotification(subscription, payload);
-        console.log("Push notification sent successfully to owner:", targetOwnerId);
-        return res.json({ status: "ok" });
+        try {
+          await webpush.sendNotification(subscription, payload);
+          console.log("Trigger Notification: Success for owner:", targetOwnerId);
+          return res.json({ status: "ok" });
+        } catch (pushError: any) {
+          console.error("Trigger Notification: WebPush Error:", pushError);
+          if (pushError.statusCode === 410 || pushError.statusCode === 404) {
+            console.log("Trigger Notification: Subscription expired/invalid, removing...");
+            await client.deleteDoc(client.doc(db, "push_subscriptions", targetOwnerId));
+          }
+          throw pushError;
+        }
       }
 
-      console.warn("Subscription data missing in document for owner:", targetOwnerId);
+      console.warn("Trigger Notification: Subscription data missing in document for owner:", targetOwnerId);
       res.json({ status: "skipped", reason: "Subscription data missing" });
     } catch (error: any) {
-      console.error("Trigger Notification Error:", error);
+      console.error("Trigger Notification: Final Error:", error);
       res.status(500).json({ error: "Failed to send notification", details: error.message });
     }
   });
@@ -461,23 +473,30 @@ export async function createApp() {
   const startBookingListener = async () => {
     try {
       const adminDb = await getAdminDb();
-      console.log("Starting Firestore listener for new bookings...");
+      if (!adminDb) {
+        console.warn("Booking Listener: Admin DB not available, skipping listener.");
+        return;
+      }
+      console.log("Booking Listener: Starting Firestore listener...");
       
       adminDb.collection("bookings").onSnapshot(async (snapshot) => {
         const changes = snapshot.docChanges();
         for (const change of changes) {
           if (change.type === "added") {
             const booking = change.doc.data();
-            // Only notify for new bookings (less than 1 minute old to avoid spamming on startup)
+            // Only notify for new bookings (less than 2 minutes old to be safe)
             const createdAt = booking.createdAt?.toDate();
-            if (createdAt && (Date.now() - createdAt.getTime()) < 60000) {
-              console.log("New booking detected via listener:", change.doc.id);
+            if (createdAt && (Date.now() - createdAt.getTime()) < 120000) {
+              console.log("Booking Listener: New booking detected:", change.doc.id);
               
               try {
                 // 1. Get salon details to find ownerId
                 const salonRef = adminDb.collection("salons").doc(booking.salonId);
                 const salonDoc = await salonRef.get();
-                if (!salonDoc.exists) continue;
+                if (!salonDoc.exists) {
+                  console.log("Booking Listener: Salon not found:", booking.salonId);
+                  continue;
+                }
                 const salon = salonDoc.data();
                 if (!salon) continue;
                 
@@ -487,33 +506,41 @@ export async function createApp() {
                 const subRef = adminDb.collection("push_subscriptions").doc(ownerId);
                 const subDoc = await subRef.get();
                 if (!subDoc.exists) {
-                  console.log("No push subscription found for owner:", ownerId);
+                  console.log("Booking Listener: No push subscription for owner:", ownerId);
                   continue;
                 }
                 const subscription = subDoc.data()?.subscription;
                 
                 if (subscription) {
-                  console.log("Sending push notification to owner:", ownerId);
+                  console.log("Booking Listener: Sending push to owner:", ownerId);
                   const payload = JSON.stringify({
                     title: "New Booking!",
                     body: `You have a new booking request for ${salon.name}.`,
                     url: `/booking/${change.doc.id}`
                   });
                   
-                  await webpush.sendNotification(subscription, payload);
-                  console.log("Push notification sent successfully.");
+                  try {
+                    await webpush.sendNotification(subscription, payload);
+                    console.log("Booking Listener: Push sent successfully.");
+                  } catch (pushError: any) {
+                    console.error("Booking Listener: WebPush Error:", pushError.message);
+                    if (pushError.statusCode === 410 || pushError.statusCode === 404) {
+                      console.log("Booking Listener: Removing invalid subscription...");
+                      await subRef.delete();
+                    }
+                  }
                 }
               } catch (error) {
-                console.error("Error sending push notification:", error);
+                console.error("Booking Listener: Error processing booking:", error);
               }
             }
           }
         }
       }, (err) => {
-        console.error("Booking listener error:", err);
+        console.error("Booking Listener: Snapshot error:", err);
       });
     } catch (err) {
-      console.error("Failed to start booking listener:", err);
+      console.error("Booking Listener: Failed to start:", err);
     }
   };
 
