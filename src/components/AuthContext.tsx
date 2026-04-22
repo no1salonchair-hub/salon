@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, getDocFromServer, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { toast } from 'sonner';
@@ -29,28 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('AuthContext: Initializing auth listener...');
     let isMounted = true;
-
-    // Connection test as per critical directive - moved inside useEffect to avoid blocking
-    const runConnectionTest = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-          toast.error("Firebase connection failed. Please check your configuration.");
-        }
-      }
-    };
-    runConnectionTest().catch(err => console.error('AuthContext: Connection test failed:', err));
     
     // Safety timeout to prevent infinite loading (e.g. if 3rd party cookies are blocked)
-    // We'll set a long timeout for the hard error, but let the UI handle the "taking long" state
     const safetyTimeout = setTimeout(() => {
       if (isMounted) {
         setLoading(prev => {
           if (prev) {
             console.warn('AuthContext: Auth initialization timed out after 20s. Forcing loading to false.');
-            setError(new Error('Authentication failed to initialize. This usually happens in incognito mode or when third-party cookies are blocked. Try clicking "Reload Application" or use the "Go to Login" button if it appeared.'));
+            setError(new Error('Authentication failed to initialize. If the site is not reachable, please check your network connection and disable any strong ad-blockers.'));
             return false;
           }
           return prev;
@@ -73,22 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Set loading to false as soon as we have a user to speed up initial render
-      // The profile will load in the background
+      // Set loading to false early to prevent blocking the UI while fetching profile
       setLoading(false);
 
       try {
         console.log(`AuthContext: User ${firebaseUser.uid} logged in, fetching profile...`);
         
+        // Use regular getDoc to benefit from offline persistence cache
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         const isAdmin = firebaseUser.email === 'no1salonchair@gmail.com';
         
         if (userDoc.exists()) {
           const existingProfile = userDoc.data() as UserProfile;
-          console.log('AuthContext: Profile found in Firestore');
-          
           if (isAdmin && existingProfile.role !== 'admin') {
-            console.log('AuthContext: Upgrading user to admin role');
             const updatedProfile = { ...existingProfile, role: 'admin' as const };
             await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile);
             if (isMounted) setProfile(updatedProfile);
@@ -96,7 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (isMounted) setProfile(existingProfile);
           }
         } else {
-          console.log('AuthContext: Profile not found, creating new profile...');
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             name: firebaseUser.displayName || 'Anonymous',
@@ -108,13 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
           if (isMounted) setProfile(newProfile);
         }
-        console.log('AuthContext: Profile loading complete');
       } catch (err: any) {
         console.error('AuthContext: Error in auth state change handler:', err);
-        if (isMounted) setError(err);
+        // Don't set hard error here for profile fetch, just log it
+        // The app can survive without a profile for a bit (fallback to defaults)
       } finally {
         if (isMounted) {
-          console.log('AuthContext: Setting loading to false in finally block');
           setLoading(false);
         }
       }

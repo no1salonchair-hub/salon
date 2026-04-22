@@ -75,8 +75,6 @@ export const Home: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log('Home: useEffect triggered');
-    
     // Get user location with timeout
     if (navigator.geolocation && !userLocation) {
       detectLocation();
@@ -308,20 +306,35 @@ export const Home: React.FC = () => {
                 <div className="p-6 space-y-4">
                   <div>
                     <h3 className="text-xl font-black mb-1 text-white">{salon.name}</h3>
-                      <div className="flex items-center gap-1 text-white/40 text-xs font-bold uppercase tracking-widest">
-                        <MapPin className="w-3 h-3" />
-                        <span>
-                          {userLocation && salon.location && typeof salon.location.lat === 'number' && typeof salon.location.lng === 'number'
-                            ? (() => {
-                                try {
-                                  const dist = getDistance(userLocation.lat, userLocation.lng, salon.location.lat, salon.location.lng);
-                                  return isNaN(dist) ? 'Nearby' : `${dist.toFixed(1)} km away`;
-                                } catch (e) {
-                                  return 'Nearby';
-                                }
-                              })()
-                            : 'Nearby'}
-                        </span>
+                      <div className="flex items-center gap-2 text-white/40 text-xs font-bold uppercase tracking-widest">
+                        <div className="flex items-center gap-1 flex-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>
+                            {userLocation && salon.location && typeof salon.location.lat === 'number' && typeof salon.location.lng === 'number'
+                              ? (() => {
+                                  try {
+                                    const dist = getDistance(userLocation.lat, userLocation.lng, salon.location.lat, salon.location.lng);
+                                    return isNaN(dist) ? 'Nearby' : `${dist.toFixed(1)} km away`;
+                                  } catch (e) {
+                                    return 'Nearby';
+                                  }
+                                })()
+                              : 'Nearby'}
+                          </span>
+                        </div>
+                        {salon.location && typeof salon.location.lat === 'number' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `https://www.google.com/maps/dir/?api=1&destination=${salon.location.lat},${salon.location.lng}`;
+                              window.open(url, '_blank');
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10 shadow-sm"
+                            title="Get Directions"
+                          >
+                            <MapPin className="w-3 h-3 text-purple-400 fill-purple-400/20" />
+                          </button>
+                        )}
                       </div>
                   </div>
 

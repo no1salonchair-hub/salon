@@ -306,7 +306,19 @@ export const SalonDetails: React.FC = () => {
               )}
               <div className="flex items-center gap-2 text-gray-200">
                 <MapPin className="w-5 h-5 text-purple-400" />
-                <span>Premium Location</span>
+                <span className="flex-1">Premium Location</span>
+                {salon.location && typeof salon.location.lat === 'number' && (
+                  <button
+                    onClick={() => {
+                      const url = `https://www.google.com/maps/dir/?api=1&destination=${salon.location.lat},${salon.location.lng}`;
+                      window.open(url, '_blank');
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    Get Directions
+                  </button>
+                )}
               </div>
             </div>
           </div>

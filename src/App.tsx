@@ -95,7 +95,7 @@ const AuthConsumer: React.FC = () => {
   
   React.useEffect(() => {
     if (loading) {
-      const timer = setTimeout(() => setShowEmergency(true), 8000);
+      const timer = setTimeout(() => setShowEmergency(true), 5000);
       return () => clearTimeout(timer);
     }
   }, [loading]);

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseAppletConfig from '../firebase-applet-config.json';
 
@@ -15,30 +15,30 @@ const firebaseConfig = {
   firestoreDatabaseId: firebaseAppletConfig.firestoreDatabaseId || import.meta.env.VITE_FIRESTORE_DATABASE_ID || '(default)',
 };
 
-if (!firebaseConfig.apiKey) {
-  console.error('Firebase configuration is missing or invalid. Please check environment variables or firebase-applet-config.json');
-}
-
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with settings for better compatibility in iframes/restricted networks
+// Initialize Firestore with settings for better compatibility
 export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
-// Test connection to Firestore
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firestore connection successful');
-  } catch (error) {
-    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
-      console.error("Please check your Firebase configuration. Firestore is unreachable.");
-    }
-  }
+// Enable offline persistence for better performance on slow networks (3G)
+if (typeof window !== 'undefined') {
+  enableIndexedDbPersistence(db)
+    .then(() => {
+      console.log('Firestore offline persistence enabled');
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a a time.
+        console.warn('Firestore persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support all of the features required to enable persistence
+        console.warn('Firestore persistence failed: Browser not supported');
+      }
+    });
 }
-testConnection().catch(err => console.error('Firestore connection test failed:', err));
 
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
