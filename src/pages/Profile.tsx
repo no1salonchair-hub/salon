@@ -126,7 +126,7 @@ export const Profile: React.FC = () => {
           </button>
         </form>
 
-        {profile.role === 'salon_owner' && (
+        {(profile.role === 'salon_owner' || profile.role === 'admin') && (
           <div className="pt-8 border-t border-white/10 space-y-6">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-purple-400">

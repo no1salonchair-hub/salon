@@ -25,7 +25,7 @@ export const Dashboard: React.FC = () => {
 
   // Separate effect to fetch user profiles whenever bookings change
   useEffect(() => {
-    if (profile?.role !== 'salon_owner' || bookings.length === 0) return;
+    if ((profile?.role !== 'salon_owner' && profile?.role !== 'admin') || bookings.length === 0) return;
 
     const userIds = [...new Set(bookings.map(b => b.userId))];
     userIds.forEach(async (userId) => {
@@ -53,7 +53,7 @@ export const Dashboard: React.FC = () => {
     let unsubscribeBookings: () => void;
     let unsubscribeSalon: () => void;
 
-    if (profile.role === 'salon_owner') {
+    if (profile.role === 'salon_owner' || profile.role === 'admin') {
       // Fetch Owner's Salon
       const qSalon = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
       unsubscribeSalon = onSnapshot(qSalon, (snapshot) => {
@@ -180,8 +180,8 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Salon Status (Owner Only) */}
-      {profile?.role === 'salon_owner' && (
+      {/* Salon Status (Owner or Admin with Salon) */}
+      {(profile?.role === 'salon_owner' || profile?.role === 'admin') && (
         salon ? (
           <>
             <div
@@ -211,6 +211,13 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+              <button
+                onClick={() => setActiveTab('qr_sticker')}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-purple-600/20 text-purple-400 rounded-xl font-bold hover:bg-purple-600/30 transition-all border border-purple-500/20 shadow-lg"
+              >
+                <QrCode className="w-5 h-5" />
+                QR Sticker
+              </button>
               {salon.status === 'pending' && (
                 <button
                   onClick={() => navigate('/payment')}
@@ -275,7 +282,7 @@ export const Dashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Calendar className="text-purple-500" />
-            {profile?.role === 'salon_owner' ? 'Management Console' : 'Your Appointments'}
+            {(profile?.role === 'salon_owner' || profile?.role === 'admin') ? 'Management Console' : 'Your Appointments'}
           </h2>
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto scrollbar-hide">
             <button
@@ -308,7 +315,7 @@ export const Dashboard: React.FC = () => {
                 Favorites
               </button>
             )}
-            {profile?.role === 'salon_owner' && (
+            {(profile?.role === 'salon_owner' || profile?.role === 'admin') && (
               <>
                 <button
                   onClick={() => setActiveTab('insights')}
@@ -335,7 +342,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {activeTab === 'insights' && profile?.role === 'salon_owner' ? (
+        {activeTab === 'insights' && (profile?.role === 'salon_owner' || profile?.role === 'admin') ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-xl">
@@ -423,7 +430,7 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-        ) : activeTab === 'qr_sticker' && profile?.role === 'salon_owner' && salon ? (
+        ) : activeTab === 'qr_sticker' && (profile?.role === 'salon_owner' || profile?.role === 'admin') && salon ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
             <QRSticker salonId={salon.id} salonName={salon.name} />
           </div>
@@ -478,7 +485,7 @@ export const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
-        ) : profile?.role === 'salon_owner' ? (
+        ) : (profile?.role === 'salon_owner' || profile?.role === 'admin') ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Pending Section */}
             <div className="space-y-4">

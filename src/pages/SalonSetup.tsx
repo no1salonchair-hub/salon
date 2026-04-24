@@ -149,7 +149,7 @@ export const SalonSetup: React.FC = () => {
       }
     };
 
-    if (profile?.role === 'salon_owner') {
+    if (profile?.role === 'salon_owner' || profile?.role === 'admin') {
       checkSalon().catch(err => {
         console.error('Unhandled checkSalon error:', err);
       });
@@ -272,7 +272,7 @@ export const SalonSetup: React.FC = () => {
         }
       }
       
-      toast.loading(profile.role === 'salon_owner' ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
+      toast.loading((profile.role === 'salon_owner' || profile.role === 'admin') ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
 
       // Check if salon already exists
       const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
@@ -339,7 +339,7 @@ export const SalonSetup: React.FC = () => {
       console.error('Error during salon setup/update:', error);
       toast.error('Failed to save salon details.', { id: toastId });
       try {
-        handleFirestoreError(error, profile.role === 'salon_owner' ? OperationType.UPDATE : OperationType.CREATE, 'salons');
+        handleFirestoreError(error, (profile.role === 'salon_owner' || profile.role === 'admin') ? OperationType.UPDATE : OperationType.CREATE, 'salons');
       } catch (e) {
         console.error('Firestore error reported:', e);
       }
@@ -753,8 +753,8 @@ export const SalonSetup: React.FC = () => {
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
               {loading 
-                ? (profile.role === 'salon_owner' ? 'Updating salon...' : 'Setting up salon...') 
-                : (profile.role === 'salon_owner' && salonStatus === 'active' ? 'Save Changes' : 'Save & Pay Now')}
+                ? ((profile.role === 'salon_owner' || profile.role === 'admin') ? 'Updating salon...' : 'Setting up salon...') 
+                : ((profile.role === 'salon_owner' || profile.role === 'admin') && salonStatus === 'active' ? 'Save Changes' : 'Save & Pay Now')}
             </button>
           </div>
         </form>
