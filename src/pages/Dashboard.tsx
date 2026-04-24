@@ -7,9 +7,10 @@ import { Booking, Salon, Payment, UserProfile, Favorite } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2, Star, User, Heart, TrendingUp, Users, Award, MapPin } from 'lucide-react';
+import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCircle, Clock, ChevronRight, Share2, Star, User, Heart, TrendingUp, Users, Award, MapPin, QrCode } from 'lucide-react';
 import { PushNotificationManager } from '../components/PushNotificationManager';
 import { ReviewModal } from '../components/ReviewModal';
+import { QRSticker } from '../components/QRSticker';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -20,7 +21,7 @@ export const Dashboard: React.FC = () => {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'favorites' | 'insights'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'favorites' | 'insights' | 'qr_sticker'>('upcoming');
 
   // Separate effect to fetch user profiles whenever bookings change
   useEffect(() => {
@@ -308,16 +309,28 @@ export const Dashboard: React.FC = () => {
               </button>
             )}
             {profile?.role === 'salon_owner' && (
-              <button
-                onClick={() => setActiveTab('insights')}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2",
-                  activeTab === 'insights' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-white/40 hover:text-white"
-                )}
-              >
-                <TrendingUp className="w-3 h-3" />
-                VIP Insights
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveTab('insights')}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2",
+                    activeTab === 'insights' ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  VIP Insights
+                </button>
+                <button
+                  onClick={() => setActiveTab('qr_sticker')}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2",
+                    activeTab === 'qr_sticker' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  <QrCode className="w-3 h-3" />
+                  QR Sticker
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -409,6 +422,10 @@ export const Dashboard: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        ) : activeTab === 'qr_sticker' && profile?.role === 'salon_owner' && salon ? (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+            <QRSticker salonId={salon.id} salonName={salon.name} />
           </div>
         ) : activeTab === 'favorites' && profile?.role === 'user' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
