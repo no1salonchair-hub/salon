@@ -5,9 +5,10 @@ import { Download, QrCode } from 'lucide-react';
 interface QRStickerProps {
   salonId: string;
   salonName: string;
+  address: string;
 }
 
-export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName }) => {
+export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName, address }) => {
   const stickerRef = useRef<HTMLDivElement>(null);
   
   // Create the booking URL
@@ -24,7 +25,7 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName }) => {
 
     // Set dimensions for a high-quality sticker (A5 size aspect ratio or square)
     const stickerWidth = 1200;
-    const stickerHeight = 1600;
+    const stickerHeight = 1800; // Increased height to fit address
     stickerCanvas.width = stickerWidth;
     stickerCanvas.height = stickerHeight;
 
@@ -37,35 +38,58 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName }) => {
     ctx.lineWidth = 40;
     ctx.strokeRect(20, 20, stickerWidth - 40, stickerHeight - 40);
 
-    // 3. Header Text (Website Name)
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
-    
-    // Website Title
-    ctx.font = 'black 80px sans-serif';
-    ctx.fillText('SalonChair.website', stickerWidth / 2, 200);
-
-    // Salon Name
-    ctx.font = 'bold 100px sans-serif';
+    // 3. Salon Name (BIG)
     ctx.fillStyle = '#9333EA';
-    ctx.fillText(salonName, stickerWidth / 2, 350);
+    ctx.textAlign = 'center';
+    ctx.font = 'black 120px sans-serif';
+    ctx.fillText(salonName.toUpperCase(), stickerWidth / 2, 220);
 
-    // 4. Draw the QR Code
-    const qrSize = 800;
+    // 4. Call to Action Quote
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 60px sans-serif';
+    ctx.fillText('Book our salon chair at', stickerWidth / 2, 330);
+    
+    ctx.fillStyle = '#9333EA';
+    ctx.font = 'black 80px sans-serif';
+    ctx.fillText('salonchair.website', stickerWidth / 2, 430);
+
+    // 5. Draw the QR Code
+    const qrSize = 750;
     const qrX = (stickerWidth - qrSize) / 2;
-    const qrY = 450;
+    const qrY = 500;
     
     // Create a temporary canvas for higher resolution QR
     ctx.drawImage(canvas, qrX, qrY, qrSize, qrSize);
 
-    // 5. Footer Text ("Scan & Book")
-    ctx.fillStyle = '#000000';
-    ctx.font = 'black 120px sans-serif';
-    ctx.fillText('SCAN & BOOK', stickerWidth / 2, stickerHeight - 200);
-
-    ctx.font = 'bold 50px sans-serif';
+    // 6. Address
     ctx.fillStyle = '#6B7280';
-    ctx.fillText('Instant Appointments • No Waiting', stickerWidth / 2, stickerHeight - 100);
+    ctx.font = 'bold 45px sans-serif';
+    // Handle long addresses with simple wrapping (center-aligned)
+    const words = address.split(' ');
+    let line = '';
+    let y = qrY + qrSize + 100;
+    for(let n = 0; n < words.length; n++) {
+      let testLine = line + words[n] + ' ';
+      let metrics = ctx.measureText(testLine);
+      let testWidth = metrics.width;
+      if (testWidth > 1000 && n > 0) {
+        ctx.fillText(line, stickerWidth / 2, y);
+        line = words[n] + ' ';
+        y += 60;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, stickerWidth / 2, y);
+
+    // 7. Footer Matter
+    ctx.fillStyle = '#000000';
+    ctx.font = 'black 100px sans-serif';
+    ctx.fillText('SCAN & BOOK', stickerWidth / 2, stickerHeight - 220);
+
+    ctx.font = 'bold 40px sans-serif';
+    ctx.fillStyle = '#9333EA';
+    ctx.fillText('No waiting • Check real-time availability • Secure bookings', stickerWidth / 2, stickerHeight - 120);
 
     // Download the image
     const dataUrl = stickerCanvas.toDataURL('image/png');
@@ -81,47 +105,51 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName }) => {
         <div className="w-16 h-16 bg-purple-600/20 rounded-2xl flex items-center justify-center text-purple-400 mb-6">
           <QrCode className="w-8 h-8" />
         </div>
-        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Your Unique QR Sticker</h3>
-        <p className="text-white/60 mb-8 max-w-sm">
-          Place this unique QR sticker at your shop's entrance or counter. 
-          Customers can scan it to instantly book an appointment at your salon.
+        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Your Salon QR Sticker</h3>
+        <p className="text-white/60 mb-8 max-w-sm text-sm">
+          A high-conversion sticker for your shop. Shows your salon name, address, and a direct booking QR code.
         </p>
 
         {/* Visual Preview of the sticker */}
         <div 
           ref={stickerRef}
-          className="bg-white p-10 rounded-3xl shadow-2xl border-8 border-purple-600 mb-8 w-full max-w-[350px] aspect-[3/4] flex flex-col items-center justify-between"
+          className="bg-white p-8 rounded-[2rem] shadow-2xl border-4 border-purple-600 mb-8 w-full max-w-[380px] aspect-[1/1.4] flex flex-col items-center justify-between overflow-hidden"
         >
-          <div className="text-center">
-            <p className="text-black/40 font-black text-[10px] uppercase tracking-[0.2em] mb-1">SalonChair.website</p>
-            <h4 className="text-purple-600 font-black text-xl truncate px-2">{salonName}</h4>
+          <div className="text-center w-full">
+            <h4 className="text-purple-600 font-black text-2xl uppercase tracking-tighter truncate px-2 mb-2">{salonName}</h4>
+            <p className="text-black font-bold text-[10px] uppercase tracking-wider mb-0.5">Book our salon chair at</p>
+            <p className="text-purple-600 font-black text-sm uppercase tracking-widest">salonchair.website</p>
           </div>
           
-          <div className="bg-[#f3f4f6] p-4 rounded-2xl border-4 border-dashed border-purple-200">
+          <div className="bg-[#f3f4f6] p-3 rounded-2xl border-2 border-dashed border-purple-200 my-4">
             <QRCodeCanvas
               id="salon-qr-canvas"
               value={bookingUrl}
-              size={200}
+              size={180}
               level="H"
               includeMargin={true}
             />
           </div>
 
-          <div className="text-center">
-            <p className="text-black font-black text-2xl italic tracking-tighter leading-none mb-1 uppercase">Scan & Book</p>
-            <p className="text-black/60 font-medium text-[8px] uppercase tracking-widest">Appointments • No Waiting</p>
+          <div className="w-full text-center px-4">
+            <p className="text-gray-500 font-bold text-[10px] uppercase tracking-wide line-clamp-2">{address}</p>
+          </div>
+
+          <div className="text-center w-full mt-4 pt-4 border-t border-gray-100">
+            <p className="text-black font-black text-xl italic tracking-tighter leading-none mb-1 uppercase">Scan & Book</p>
+            <p className="text-purple-600 font-bold text-[7px] uppercase tracking-[0.1em]">No waiting • Real-time Availability</p>
           </div>
         </div>
 
         <button
           onClick={downloadSticker}
-          className="flex items-center gap-3 px-8 py-4 bg-purple-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-purple-500 transition-all shadow-xl shadow-purple-600/20"
+          className="flex items-center gap-3 px-8 py-4 bg-purple-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-purple-500 transition-all shadow-xl shadow-purple-600/20 w-full justify-center"
         >
           <Download className="w-5 h-5" />
-          Download QR Sticker
+          Download Premium Sticker
         </button>
         <p className="mt-4 text-[10px] text-white/20 font-bold uppercase tracking-widest">
-          High-resolution PNG • Print ready
+          High-resolution PNG • Print ready for your shop window
         </p>
       </div>
     </div>

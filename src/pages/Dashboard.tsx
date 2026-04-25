@@ -432,7 +432,11 @@ export const Dashboard: React.FC = () => {
           </div>
         ) : activeTab === 'qr_sticker' && (profile?.role === 'salon_owner' || profile?.role === 'admin') && salon ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
-            <QRSticker salonId={salon.id} salonName={salon.name} />
+            <QRSticker 
+              salonId={salon.id} 
+              salonName={salon.name} 
+              address={salon.location.address || `${salon.location.city || ''}, ${salon.location.state || ''}`} 
+            />
           </div>
         ) : activeTab === 'favorites' && profile?.role === 'user' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
