@@ -116,28 +116,30 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName, addres
           className="bg-white p-8 rounded-[2rem] shadow-2xl border-4 border-purple-600 mb-8 w-full max-w-[380px] aspect-[1/1.4] flex flex-col items-center justify-between overflow-hidden"
         >
           <div className="text-center w-full">
-            <h4 className="text-purple-600 font-black text-2xl uppercase tracking-tighter truncate px-2 mb-2">{salonName}</h4>
-            <p className="text-black font-bold text-[10px] uppercase tracking-wider mb-0.5">Book our salon chair at</p>
-            <p className="text-purple-600 font-black text-sm uppercase tracking-widest">salonchair.website</p>
+            <h4 className="text-purple-600 font-black text-3xl uppercase tracking-tighter truncate px-2 mb-3 leading-tight">{salonName}</h4>
+            <div className="space-y-1">
+              <p className="text-black font-bold text-xs uppercase tracking-wider">Book our salon chair at</p>
+              <p className="text-purple-600 font-black text-xl uppercase tracking-widest">salonchair.website</p>
+            </div>
           </div>
           
-          <div className="bg-[#f3f4f6] p-3 rounded-2xl border-2 border-dashed border-purple-200 my-4">
+          <div className="bg-[#f3f4f6] p-4 rounded-[2rem] border-2 border-dashed border-purple-200 my-6 shadow-inner">
             <QRCodeCanvas
               id="salon-qr-canvas"
               value={bookingUrl}
-              size={180}
+              size={200}
               level="H"
               includeMargin={true}
             />
           </div>
 
-          <div className="w-full text-center px-4">
-            <p className="text-gray-500 font-bold text-[10px] uppercase tracking-wide line-clamp-2">{address}</p>
+          <div className="w-full text-center px-6 mb-4">
+            <p className="text-gray-500 font-bold text-xs uppercase tracking-wide line-clamp-3 leading-relaxed">{address}</p>
           </div>
 
-          <div className="text-center w-full mt-4 pt-4 border-t border-gray-100">
-            <p className="text-black font-black text-xl italic tracking-tighter leading-none mb-1 uppercase">Scan & Book</p>
-            <p className="text-purple-600 font-bold text-[7px] uppercase tracking-[0.1em]">No waiting • Real-time Availability</p>
+          <div className="text-center w-full pt-6 border-t border-gray-100">
+            <p className="text-black font-black text-2xl italic tracking-tighter leading-none mb-2 uppercase">Scan & Book</p>
+            <p className="text-purple-600 font-bold text-[8px] uppercase tracking-[0.2em]">Instant Confirmation • Real-time Availability</p>
           </div>
         </div>
 

@@ -35,14 +35,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted) {
         setLoading(prev => {
           if (prev) {
-            console.warn('AuthContext: Auth initialization timed out after 20s. Forcing loading to false.');
-            setError(new Error('Authentication failed to initialize. If the site is not reachable, please check your network connection and disable any strong ad-blockers.'));
+            console.warn('AuthContext: Auth initialization timed out after 3s. Forcing loading to false for responsive fallback.');
             return false;
           }
           return prev;
         });
       }
-    }, 20000);
+    }, 3000);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('AuthContext: onAuthStateChanged fired. User:', firebaseUser?.uid || 'null');

@@ -38,7 +38,7 @@ try {
   const diag = document.getElementById('loading-diagnostic');
   if (diag) {
     console.log('Main.tsx: Removing diagnostic loader');
-    // We don't remove it yet, let React handle it by replacing root content
+    diag.remove();
   }
 
   const root = createRoot(rootElement);
@@ -51,8 +51,8 @@ try {
   );
   console.log('Main.tsx: App rendered successfully');
 
-  // Register Service Worker for PWA
-  if ('serviceWorker' in navigator) {
+  // Register Service Worker for PWA only in production
+  if ('serviceWorker' in navigator && import.meta.env.PROD) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {

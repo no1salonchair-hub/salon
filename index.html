@@ -2,6 +2,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // High-priority development safeguard: Purge service workers and browser caches in dev sandboxes
+      if (
+        window.location.hostname.includes('-dev-') || 
+        window.location.hostname.includes('localhost') || 
+        window.location.port === '3000'
+      ) {
+        console.log('Index.html: Dev environment detected. Disabling Service Worker and clearing caches.');
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            var found = false;
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+              found = true;
+            }
+            if (found) {
+              console.log('Index.html: Unregistered stale Service Workers. Hard reloading...');
+              window.location.reload(true);
+            }
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            keys.forEach(function(key) {
+              caches.delete(key);
+            });
+          });
+        }
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Salon Chair | Premium Salon Marketplace</title>
     <link rel="manifest" href="/manifest.json" />

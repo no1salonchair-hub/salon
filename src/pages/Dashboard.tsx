@@ -11,6 +11,7 @@ import { Plus, Scissors, CreditCard, Calendar, CheckCircle, XCircle, MessageCirc
 import { PushNotificationManager } from '../components/PushNotificationManager';
 import { ReviewModal } from '../components/ReviewModal';
 import { QRSticker } from '../components/QRSticker';
+import { QRStickerModal } from '../components/QRStickerModal';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -22,6 +23,7 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'favorites' | 'insights' | 'qr_sticker'>('upcoming');
+  const [showQRModal, setShowQRModal] = useState(false);
 
   // Separate effect to fetch user profiles whenever bookings change
   useEffect(() => {
@@ -212,11 +214,11 @@ export const Dashboard: React.FC = () => {
 
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
               <button
-                onClick={() => setActiveTab('qr_sticker')}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-purple-600/20 text-purple-400 rounded-xl font-bold hover:bg-purple-600/30 transition-all border border-purple-500/20 shadow-lg"
+                onClick={() => setShowQRModal(true)}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-purple-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-purple-500 transition-all shadow-xl shadow-purple-950/40 border border-purple-400/20"
               >
                 <QrCode className="w-5 h-5" />
-                QR Sticker
+                Download Shop QR Sticker
               </button>
               {salon.status === 'pending' && (
                 <button
@@ -709,6 +711,15 @@ export const Dashboard: React.FC = () => {
           salonId={reviewBooking.salonId}
           onClose={() => setReviewBooking(null)}
           onSuccess={() => setReviewBooking(null)}
+        />
+      )}
+
+      {showQRModal && salon && (
+        <QRStickerModal
+          salonId={salon.id}
+          salonName={salon.name}
+          address={salon.location.address || `${salon.location.city || ''}, ${salon.location.state || ''}`}
+          onClose={() => setShowQRModal(false)}
         />
       )}
     </div>
