@@ -173,9 +173,9 @@ export const Login: React.FC = () => {
         </div>
 
         <h1 className="text-4xl sm:text-6xl md:text-7xl font-sans font-black tracking-tight leading-[1.05] max-w-4xl text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-200">
-          Get More Salon Bookings <br />
+          The Best Chair is <br />
           <span className="italic bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-blue-400">
-            Without Extra Staff
+            Waiting...
           </span>
         </h1>
 
