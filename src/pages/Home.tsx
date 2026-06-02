@@ -180,7 +180,7 @@ export const Home: React.FC = () => {
           <h1
             className="text-[28px] md:text-[40px] font-black mb-4 text-white"
           >
-            Get More Salon Bookings Without Extra Staff
+            The Best Chair is Waiting...
           </h1>
           <div className="flex flex-col md:flex-row gap-4 max-w-2xl">
             <div className="relative flex-1">
