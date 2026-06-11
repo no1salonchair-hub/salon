@@ -398,7 +398,7 @@ export const Home: React.FC = () => {
           <button
             onClick={() => {
               sessionStorage.setItem('redirect_post_login', '/salon-setup');
-              navigate('/login');
+              navigate('/login?register=true');
             }}
             className="flex-shrink-0 px-6 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-600/25 flex items-center gap-2 relative z-10"
           >

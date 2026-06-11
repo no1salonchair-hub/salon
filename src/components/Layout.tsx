@@ -33,9 +33,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const navItems = [
     { to: '/', icon: Home, label: 'Marketplace' },
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/profile', icon: User, label: 'Profile' },
   ];
+
+  if (user) {
+    navItems.push(
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/profile', icon: User, label: 'Profile' }
+    );
+  }
 
   if (profile?.role === 'admin') {
     navItems.push({ to: '/admin', icon: ShieldCheck, label: 'Admin' });
@@ -98,7 +103,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               <button
                 onClick={() => {
                   sessionStorage.setItem('redirect_post_login', '/salon-setup');
-                  navigate('/login');
+                  navigate('/login?register=true');
                 }}
                 className="px-4 py-2 border border-purple-500/30 hover:border-purple-500/60 hover:bg-purple-500/5 text-purple-400 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
               >
@@ -144,7 +149,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <button
             onClick={() => {
               sessionStorage.setItem('redirect_post_login', '/salon-setup');
-              navigate('/login');
+              navigate('/login?register=true');
             }}
             className="flex flex-col items-center gap-1 text-purple-400"
           >
