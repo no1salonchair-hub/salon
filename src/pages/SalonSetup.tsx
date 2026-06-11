@@ -160,6 +160,15 @@ export const SalonSetup: React.FC = () => {
     }
   }, [profile, navigate]);
 
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Loading physical store configuration...</p>
+      </div>
+    );
+  }
+
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -272,10 +281,10 @@ export const SalonSetup: React.FC = () => {
         }
       }
       
-      toast.loading((profile.role === 'salon_owner' || profile.role === 'admin') ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
+      toast.loading((profile?.role === 'salon_owner' || profile?.role === 'admin') ? 'Saving changes...' : 'Creating salon profile...', { id: toastId });
 
       // Check if salon already exists
-      const q = query(collection(db, 'salons'), where('ownerId', '==', profile.uid));
+      const q = query(collection(db, 'salons'), where('ownerId', '==', profile?.uid || ''));
       const snapshot = await getDocs(q);
       
       if (!snapshot.empty) {
@@ -308,7 +317,7 @@ export const SalonSetup: React.FC = () => {
         }
 
         const salonData: Omit<Salon, 'id'> = {
-          ownerId: profile.uid,
+          ownerId: profile?.uid || '',
           name: salonName,
           services,
           barbers,
@@ -331,7 +340,7 @@ export const SalonSetup: React.FC = () => {
       
       toast.success('Salon details saved! Authorization may take up to 24 hours.', { id: toastId, duration: 6000 });
       
-      if (profile.role !== 'salon_owner') {
+      if (profile?.role !== 'salon_owner') {
         await updateProfile({ role: 'salon_owner' });
       }
       navigate('/payment');
@@ -339,7 +348,7 @@ export const SalonSetup: React.FC = () => {
       console.error('Error during salon setup/update:', error);
       toast.error('Failed to save salon details.', { id: toastId });
       try {
-        handleFirestoreError(error, (profile.role === 'salon_owner' || profile.role === 'admin') ? OperationType.UPDATE : OperationType.CREATE, 'salons');
+        handleFirestoreError(error, (profile?.role === 'salon_owner' || profile?.role === 'admin') ? OperationType.UPDATE : OperationType.CREATE, 'salons');
       } catch (e) {
         console.error('Firestore error reported:', e);
       }
@@ -753,8 +762,8 @@ export const SalonSetup: React.FC = () => {
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
               {loading 
-                ? ((profile.role === 'salon_owner' || profile.role === 'admin') ? 'Updating salon...' : 'Setting up salon...') 
-                : ((profile.role === 'salon_owner' || profile.role === 'admin') && salonStatus === 'active' ? 'Save Changes' : 'Save & Pay Now')}
+                ? ((profile?.role === 'salon_owner' || profile?.role === 'admin') ? 'Updating salon...' : 'Setting up salon...') 
+                : ((profile?.role === 'salon_owner' || profile?.role === 'admin') && salonStatus === 'active' ? 'Save Changes' : 'Save & Pay Now')}
             </button>
           </div>
         </form>
