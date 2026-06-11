@@ -1,5 +1,7 @@
 import { createApp } from "./api/index.ts";
 import { createServer as createViteServer } from "vite";
+import fs from "fs";
+import path from "path";
 
 async function start() {
   console.log("Starting server process...");
@@ -7,17 +9,18 @@ async function start() {
   const PORT = 3000;
 
   const isProd = process.env.NODE_ENV === "production";
-  console.log(`Environment: NODE_ENV=${process.env.NODE_ENV}, isProd=${isProd}`);
+  const distExists = fs.existsSync(path.join(process.cwd(), "dist"));
+  console.log(`Environment: NODE_ENV=${process.env.NODE_ENV}, isProd=${isProd}, distExists=${distExists}`);
 
-  if (!isProd) {
-    console.log("Starting Vite in middleware mode...");
+  if (!isProd || !distExists) {
+    console.log("Starting Vite in middleware/development fallback mode...");
     try {
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
       });
       app.use(vite.middlewares);
-      console.log("Vite middleware integrated.");
+      console.log("Vite middleware integrated successfully.");
     } catch (e) {
       console.error("Failed to start Vite server:", e);
     }

@@ -161,7 +161,15 @@ export const SalonDetails: React.FC = () => {
   };
 
   const handleBooking = async () => {
-    if (!profile || !salon || selectedServices.length === 0 || !selectedTime || isExpired) return;
+    if (!profile) {
+      toast.error('Please sign in to book an appointment!');
+      if (salonId) {
+        sessionStorage.setItem('redirect_post_login', `/salon/${salonId}`);
+      }
+      navigate('/login');
+      return;
+    }
+    if (!salon || selectedServices.length === 0 || !selectedTime || isExpired) return;
     if (salon.barbers && salon.barbers.length > 0 && !selectedBarber) {
       toast.error('Please select a barber');
       return;

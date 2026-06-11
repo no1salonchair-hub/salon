@@ -92,8 +92,8 @@ const AuthConsumer: React.FC = () => {
   const { error } = useAuth();
   const location = useLocation();
 
-  const publicRoutes = ['/login', '/privacy', '/contact', '/faqs'];
-  const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
+  const publicRoutes = ['/login', '/privacy', '/contact', '/faqs', '/salon'];
+  const isPublicRoute = location.pathname === '/' || publicRoutes.some(route => location.pathname.startsWith(route));
 
   console.log('AuthConsumer: Rendering', { hasError: !!error, isPublicRoute, path: location.pathname });
 
@@ -109,10 +109,10 @@ const AuthConsumer: React.FC = () => {
           <Routes>
             <Route path="/login" element={<Login />} />
             
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/" element={<Layout><Home /></Layout>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/salon-setup" element={<ProtectedRoute><SalonSetup /></ProtectedRoute>} />
-            <Route path="/salon/:salonId" element={<ProtectedRoute><SalonDetails /></ProtectedRoute>} />
+            <Route path="/salon/:salonId" element={<Layout><SalonDetails /></Layout>} />
             <Route path="/booking/:bookingId" element={<ProtectedRoute><BookingDetails /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
             <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />

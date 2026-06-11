@@ -3,12 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // High-priority development safeguard: Force clear caches in dev sandboxes
+      // High-priority development safeguard: Force clear service workers and caches in dev sandboxes
       if (
         window.location.hostname.includes('-dev-') || 
         window.location.hostname.includes('localhost') || 
-        window.location.port === '3000'
+        window.location.port === '3000' ||
+        window.location.hostname.includes('run.app')
       ) {
+        console.log('Index.html: Sandbox/Dev environment verified. Cleaning up Service Workers and Caches.');
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            var unregisteredAny = false;
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+              unregisteredAny = true;
+            }
+            if (unregisteredAny) {
+              console.log('Index.html: Active Service Workers detected and unregistered. Purging caches...');
+              if ('caches' in window) {
+                caches.keys().then(function(keys) {
+                  keys.forEach(function(key) {
+                    caches.delete(key);
+                  });
+                });
+              }
+              // Force soft-reload to ensure page loads with fresh network requests
+              setTimeout(function() {
+                window.location.reload();
+              }, 300);
+            }
+          });
+        }
         if ('caches' in window) {
           caches.keys().then(function(keys) {
             keys.forEach(function(key) {

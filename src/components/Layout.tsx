@@ -23,7 +23,7 @@ const SalonChairIcon = ({ className }: { className?: string }) => (
 );
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -76,20 +76,42 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             </NavLink>
           ))}
           <div className="h-6 w-px bg-white/10 mx-2" />
-          <NavLink to="/profile" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all overflow-hidden">
-            {profile?.photoURL ? (
-              <img src={profile.photoURL} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-5 h-5 text-white/40" />
-            )}
-          </NavLink>
-          <button
-            onClick={handleLogout}
-            className="p-2 text-white/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-            title="Logout"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          {user ? (
+            <>
+              <NavLink to="/profile" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all overflow-hidden" title="Profile">
+                {profile?.photoURL ? (
+                  <img src={profile.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-white/40" />
+                )}
+              </NavLink>
+              <button
+                onClick={handleLogout}
+                className="p-2 text-white/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('redirect_post_login', '/salon-setup');
+                  navigate('/login');
+                }}
+                className="px-4 py-2 border border-purple-500/30 hover:border-purple-500/60 hover:bg-purple-500/5 text-purple-400 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+              >
+                Register Salon
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-purple-600/20"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -110,13 +132,26 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <span className="text-[10px] uppercase tracking-wider font-semibold">{item.label}</span>
           </NavLink>
         ))}
-        <button
-          onClick={handleLogout}
-          className="flex flex-col items-center gap-1 text-red-500/80"
-        >
-          <LogOut className="w-6 h-6" />
-          <span className="text-[10px] uppercase tracking-wider font-semibold">Logout</span>
-        </button>
+        {user ? (
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center gap-1 text-red-500/80"
+          >
+            <LogOut className="w-6 h-6" />
+            <span className="text-[10px] uppercase tracking-wider font-semibold">Logout</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              sessionStorage.setItem('redirect_post_login', '/salon-setup');
+              navigate('/login');
+            }}
+            className="flex flex-col items-center gap-1 text-purple-400"
+          >
+            <PlusCircle className="w-6 h-6" />
+            <span className="text-[10px] uppercase tracking-wider font-semibold">Register</span>
+          </button>
+        )}
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
