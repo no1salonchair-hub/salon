@@ -380,33 +380,31 @@ export const Home: React.FC = () => {
         )}
       </section>
 
-      {/* Salon Owner Promo Banner (only shown if user is not logged in) */}
-      {!user && (
-        <div className="bg-gradient-to-r from-purple-950/25 via-indigo-950/30 to-black/60 border border-purple-500/20 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden mb-8">
-          <div className="absolute top-[50%] left-[-10%] w-[200px] h-[200px] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
-          <div className="relative z-10 space-y-2 text-left">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[10px] font-black text-purple-400 uppercase tracking-widest">
-              FOR SALON OWNERS
-            </span>
-            <h3 className="text-xl md:text-2xl font-black text-white">
-              Get More Salon Bookings Without Extra Staff!
-            </h3>
-            <p className="text-sm text-white/50 max-w-xl leading-relaxed">
-              Register your salon., fill your chairs, and manage your barber schedule with our easy-to-use digital dashboard.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              sessionStorage.setItem('redirect_post_login', '/salon-setup');
-              navigate('/login?register=true');
-            }}
-            className="flex-shrink-0 px-6 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-600/25 flex items-center gap-2 relative z-10"
-          >
-            <Scissors className="w-4 h-4 text-purple-200" />
-            Register as Salon Owner
-          </button>
+      {/* Salon Owner Promo Banner (always shown above the footer) */}
+      <div className="bg-gradient-to-r from-purple-950/25 via-indigo-950/30 to-black/60 border border-purple-500/20 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden mb-8">
+        <div className="absolute top-[50%] left-[-10%] w-[200px] h-[200px] bg-purple-600/10 blur-[50px] rounded-full pointer-events-none" />
+        <div className="relative z-10 space-y-2 text-left">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[10px] font-black text-purple-400 uppercase tracking-widest">
+            FOR SALON OWNERS
+          </span>
+          <h3 className="text-xl md:text-2xl font-black text-white">
+            Get More Salon Bookings Without Extra Staff!
+          </h3>
+          <p className="text-sm text-white/50 max-w-xl leading-relaxed">
+            Register your salon., fill your chairs, and manage your barber schedule with our easy-to-use digital dashboard.
+          </p>
         </div>
-      )}
+        <button
+          onClick={() => {
+            sessionStorage.setItem('redirect_post_login', '/salon-setup');
+            navigate('/login?register=true');
+          }}
+          className="flex-shrink-0 px-6 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-600/25 flex items-center gap-2 relative z-10"
+        >
+          <Scissors className="w-4 h-4 text-purple-200" />
+          Register as Salon Owner
+        </button>
+      </div>
     </div>
   );
 };
