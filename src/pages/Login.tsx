@@ -353,14 +353,7 @@ export const Login: React.FC = () => {
           <span>The Next-Gen Salon Supercharger</span>
         </div>
 
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-sans font-black tracking-tight leading-[1.05] max-w-4xl text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-200">
-          The Best Chair is <br />
-          <span className="italic bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-400 to-blue-400">
-            Waiting...
-          </span>
-        </h1>
-
-        <p className="text-white/60 text-lg sm:text-xl font-medium max-w-2xl mt-6 leading-relaxed">
+        <p className="text-white/60 text-lg sm:text-xl font-medium max-w-2xl mt-2 leading-relaxed">
           Create your salon profile, accept appointments online, and manage bookings from one dashboard. Keep your chairs filled 24/7.
         </p>
 
