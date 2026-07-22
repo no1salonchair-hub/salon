@@ -304,7 +304,7 @@ export const Login: React.FC = () => {
       {/* 1. Urgency Founding Offer Banner */}
       <div className="w-full bg-gradient-to-r from-purple-800 via-purple-600 to-indigo-700 py-3 px-4 text-center text-xs sm:text-sm font-black uppercase tracking-wider relative z-50 flex items-center justify-center gap-2 shadow-lg">
         <span className="inline-flex items-center justify-center bg-white/20 px-2 py-0.5 rounded-full text-[10px] animate-pulse">EXCLUSIVE</span>
-        <span>🎉 First 50 salons/City get 3 months free. No credit card required.</span>
+        <span>🎉 First 30 salons/City get 3 months free. No credit card required.</span>
       </div>
 
       {/* Background Ambitions Glow */}
