@@ -51,7 +51,7 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName, addres
     
     ctx.fillStyle = '#9333EA';
     ctx.font = 'black 80px sans-serif';
-    ctx.fillText('salonchair.website', stickerWidth / 2, 430);
+    ctx.fillText('booksalonchair.com', stickerWidth / 2, 430);
 
     // 5. Draw the QR Code
     const qrSize = 750;
@@ -119,7 +119,7 @@ export const QRSticker: React.FC<QRStickerProps> = ({ salonId, salonName, addres
             <h4 className="text-purple-600 font-black text-3xl uppercase tracking-tighter truncate px-2 mb-3 leading-tight">{salonName}</h4>
             <div className="space-y-1">
               <p className="text-black font-bold text-xs uppercase tracking-wider">Book our salon chair at</p>
-              <p className="text-purple-600 font-black text-xl uppercase tracking-widest">salonchair.website</p>
+              <p className="text-purple-600 font-black text-xl uppercase tracking-widest">booksalonchair.com</p>
             </div>
           </div>
           
